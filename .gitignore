@@ -1,0 +1,7 @@
+2*/
+fastq/
+fastqc/
+fastqscreen/
+multiqc/
+samplesheets/
+adapters.fa
