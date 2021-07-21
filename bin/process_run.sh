@@ -56,7 +56,7 @@ function fn_log {
 ## ------------------------------------------------------------------
 
 ## - Start processing
-touch "${BASE_DIR}"/PROCESSING
+touch "${WORKING_DIR}"/PROCESSING
 
 ## - Notify start of new run being processed
 email_start "${RUN}"
@@ -138,9 +138,9 @@ fn_log "Done!"
 email_finish "${RUNID}"
 
 ## - Cleaning up big files
-# rm -r "${BASE_DIR}"/fastq/"${RUNID}"/
-# rm -r "${BASE_DIR}"/runs/"${RUNID}"/
+# rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
+# rm -r "${WORKING_DIR}"/runs/"${RUNID}"/
 
 ## - Wrap up run processing
-rm "${BASE_DIR}"/PROCESSING
-echo "${RUN}" >> "${BASE_DIR}"/RUNS_ACHIEVED
+rm "${WORKING_DIR}"/PROCESSING
+echo "${RUN}" >> "${WORKING_DIR}"/RUNS_ACHIEVED

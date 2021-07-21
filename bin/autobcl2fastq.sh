@@ -41,11 +41,11 @@ EMAIL=${USER}@pasteur.fr
 SSH_HOSTNAME=sftpcampus
 SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
 DESTINATION=/pasteur/projets/policy02/Rsg_reads # Where the fastq are written at the end, should be `Rsg_reads`
+# DESTINATION=/pasteur/sonic/scratch/users/jaseriza
 
 BASE_DIR=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq # Where the script is hosted, should be in `rsg_fast`
 WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
-# DESTINATION=/pasteur/sonic/scratch/users/jaseriza
 
 ## ------------------------------------------------------------------
 ## -------- HELPER FUNCTIONS ----------------------------------------
@@ -60,7 +60,7 @@ function fetch_runs {
 
 ## - Check if new runs were created
 function compare_runs { 
-    if (test `wc -l "${1}" | sed 's, .*,,'` -lt `wc -l "${2}" | sed 's, .*,,'`) ; then
+    if ( test `wc -l "${1}" | sed 's, .*,,'` -lt `wc -l "${2}" | sed 's, .*,,'` ) ; then
         NEW_RUN=`grep -v -f ${1} ${2}`
         echo "${NEW_RUN}"
     fi
@@ -80,49 +80,49 @@ function check_sample_sheet {
 ## ------------------------------------------------------------------
 
 ## - Checking that no process is currently on going, immediately abort otherwise
-if test -f "${BASE_DIR}"/PROCESSING ; then
+if ( test -f "${WORKING_DIR}"/PROCESSING || test `sacct --format=Jobname%35,state | grep 'NS500150' | grep PENDING | wc -l` -gt 0 ) ; then
     echo "Samples currently being processed. Aborting now."
     exit 0
 fi
 
 ## - Checking that previous processes are registered (at least an empty file exists)
-if test ! -f "${BASE_DIR}"/ARCHIVED_RUNS ; then
-    echo "No previous runs are registered. A file named "${BASE_DIR}"/ARCHIVED_RUNS should exist. Aborting now."
+if ( test ! -f "${WORKING_DIR}"/ARCHIVED_RUNS ) ; then
+    echo "No previous runs are registered. A file named "${WORKING_DIR}"/ARCHIVED_RUNS should exist. Aborting now."
     exit 0
 fi
 
 ## - Checking for new runs
-fetch_runs > "${BASE_DIR}"/NEW_RUNS
-compare_runs "${BASE_DIR}"/ARCHIVED_RUNS "${BASE_DIR}"/NEW_RUNS > "${BASE_DIR}"/RUNS_TO_PROCESS
-rm "${BASE_DIR}"/NEW_RUNS
+fetch_runs > "${WORKING_DIR}"/NEW_RUNS
+compare_runs "${WORKING_DIR}"/ARCHIVED_RUNS "${WORKING_DIR}"/NEW_RUNS > "${WORKING_DIR}"/RUNS_TO_PROCESS
+rm "${WORKING_DIR}"/NEW_RUNS
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN(S) ------------------------
 ## ------------------------------------------------------------------
 
-if (test `wc -l "${BASE_DIR}"/RUNS_TO_PROCESS | sed 's, .*,,'` -eq 0) ; then
+if ( test `wc -l "${WORKING_DIR}"/RUNS_TO_PROCESS | sed 's, .*,,'` -eq 0 ) ; then
     echo "No runs to process. Exiting now."
     exit 0
 else 
 
     ## - Only process a single run, the first one in line
-    RUN=`cat "${BASE_DIR}"/RUNS_TO_PROCESS | head -n 1`
+    RUN=`cat "${WORKING_DIR}"/RUNS_TO_PROCESS | head -n 1`
     #RUN=210716_NS500150_0646_AHG2W5BGXJ
 
     ## - Check that a sample sheet exists for this run, otherwise go to next run
-    while (test `check_sample_sheet ${RUN}`)
+    while ( test `check_sample_sheet ${RUN}` )
     do
         echo "Missing sample sheet for ${RUN}"
-        sed -i "s,${RUN},," "${BASE_DIR}"/RUNS_TO_PROCESS
-        sed -i '/^$/d' "${BASE_DIR}"/RUNS_TO_PROCESS
-        RUN=`cat "${BASE_DIR}"/RUNS_TO_PROCESS | head -n 1`
-        if (test "${RUN}" == '') ; then 
+        sed -i "s,${RUN},," "${WORKING_DIR}"/RUNS_TO_PROCESS
+        sed -i '/^$/d' "${WORKING_DIR}"/RUNS_TO_PROCESS
+        RUN=`cat "${WORKING_DIR}"/RUNS_TO_PROCESS | head -n 1`
+        if ( test "${RUN}" == '' ) ; then 
             echo "No new samples with sample sheet can be processed. Finishing now"
-            rm "${BASE_DIR}"/RUNS_TO_PROCESS
+            rm "${WORKING_DIR}"/RUNS_TO_PROCESS
             exit 0
         fi
     done
-    rm "${BASE_DIR}"/RUNS_TO_PROCESS
+    rm "${WORKING_DIR}"/RUNS_TO_PROCESS
 
     ## - Process run
     ## |--- Sync files from nextseq repo
@@ -135,8 +135,8 @@ else
     echo "Processing run ${RUN}"
     "${SBATCH_DIR}"/sbatch \
         -J "${RUN}" \
-        -D "${BASE_DIR}" \
-        -o /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".out -e /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".err \
+        -o "${WORKING_DIR}"/autobcl2fast_"${RUN}".out \
+        -e "${WORKING_DIR}"/autobcl2fast_"${RUN}".err \
         --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",WORKING_DIR="${WORKING_DIR}",RUN="${RUN}",EMAIL="${EMAIL}",SOURCE="${SOURCE}",DESTINATION="${DESTINATION}" \
         "${BASE_DIR}"/bin/process_run.sh 
     
