@@ -70,7 +70,7 @@ email_start "${RUN}"
 
 ## - Cp entire run folder from nextseq repo to maestro ($BASE_DIR)
 echo "Fetching seq. run"
-rsync "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/"${RUN}"/ "${BASE_DIR}/${RUNID}"/ --recursive --verbose --progress
+rsync "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/"${RUN}"/ "${BASE_DIR}/${RUNID}"/ --recursive
 
 ## - Fix sample sheet
 echo "Fixing sample sheet"
@@ -131,7 +131,7 @@ multiqc \
 
 ## - Copy fastq reads to Rsg_reads
 echo "Exporting fastq reads"
-rsync "${BASE_DIR}"/fastq/"${RUNID}"/ "${SSH_HOSTNAME}":/pasteur/projets/policy02/Rsg_reads/run_"${RUNID}"/ --recursive --verbose --progress
+rsync "${BASE_DIR}"/fastq/"${RUNID}"/ "${SSH_HOSTNAME}":/pasteur/projets/policy02/Rsg_reads/run_"${RUNID}"/ --recursive
 
 ## - Copy reports to Rsg_reads/reports
 rsync "${BASE_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_HOSTNAME}":/pasteur/projets/policy02/Rsg_reads/run_"${RUNID}"/MultiQC_"${RUNID}".html

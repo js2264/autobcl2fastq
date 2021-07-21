@@ -15,7 +15,7 @@ function usage {
     echo "Written by J. Serizay"
     echo " "
     echo "crontab -l > mycron"
-    echo "30 * * * * sbatch ~/rsg_fast/jaseriza/autobcl2fastq/autobcl2fastq.sh >> mycron"
+    echo "echo '30 * * * * sbatch ~/rsg_fast/jaseriza/autobcl2fastq/autobcl2fastq.sh' >> mycron"
     echo "crontab mycron"
     echo "rm mycron"
 }
@@ -93,25 +93,24 @@ if (test `wc -l "${BASE_DIR}"/RUNS_TO_PROCESS | sed 's, .*,,'` -eq 0) ; then
     echo "No runs to process. Exiting now."
     exit 0
 else 
-    cat "${BASE_DIR}"/RUNS_TO_PROCESS
-    for RUN in `cat "${BASE_DIR}"/RUNS_TO_PROCESS`
-    do
 
-        ## - Process run
-        ## |--- Sync files from nextseq repo
-        ## |--- Fix sample sheet
-        ## |--- Run bcl2fastq, fastqc, fastq_screen, multiQC as a SLURM job
-        ## |--- Copy fastq reads to Rsg_reads
-        ## |--- Copy reports to Rsg_reads/reports
-        ## |--- Enable Read/Write for all files
-        
-        sbatch \
-            -D "${BASE_DIR}" \
-            -o /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".out -e /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".err \
-            --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",RUN="${RUN}" \
-            "${BASE_DIR}"/bin/process_run.sh 
+    ## - Only process a single run, the first one in line
+    RUN=`cat "${BASE_DIR}"/RUNS_TO_PROCESS | head -n 1`
 
-    done
+    ## - Process run
+    ## |--- Sync files from nextseq repo
+    ## |--- Fix sample sheet
+    ## |--- Run bcl2fastq, fastqc, fastq_screen, multiQC as a SLURM job
+    ## |--- Copy fastq reads to Rsg_reads
+    ## |--- Copy reports to Rsg_reads/reports
+    ## |--- Enable Read/Write for all files
+    
+    sbatch \
+        -D "${BASE_DIR}" \
+        -o /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".out -e /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".err \
+        --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",RUN="${RUN}" \
+        "${BASE_DIR}"/bin/process_run.sh 
+
 fi
 
 rm "${NEW_PROCESSED_RUNS}"
