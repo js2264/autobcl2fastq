@@ -15,7 +15,7 @@ function usage {
     echo "Written by J. Serizay"
     echo " "
     echo "crontab -l > mycron"
-    echo "echo '30 * * * * sbatch ~/rsg_fast/jaseriza/autobcl2fastq/autobcl2fastq.sh' >> mycron"
+    echo "echo '*/10 * * * * sbatch ~/rsg_fast/jaseriza/autobcl2fastq/autobcl2fastq.sh' >> mycron"
     echo "crontab mycron"
     echo "rm mycron"
 }
@@ -42,6 +42,7 @@ done
 USER=jaseriza
 SSH_HOSTNAME=sftpcampus
 EMAIL=${USER}@pasteur.fr
+SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin
 BASE_DIR=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq
 OLD_PROCESSED_RUNS="${BASE_DIR}"/RUNS_ACHIEVED
 NEW_PROCESSED_RUNS="${BASE_DIR}"/RUNS_ACHIEVED_NEW
@@ -65,12 +66,21 @@ function compare_runs {
     fi
 }
 
+## - Check that sample sheet exists for on going run
+function check_sample_sheet { 
+    if ssh "${SSH_HOSTNAME}" "test -e /pasteur/gaia/projets/p01/nextseq/${1}/SampleSheet.csv"; then
+        exit 0
+    else
+        echo 1
+    fi
+}
+
 ## ------------------------------------------------------------------
 ## ------------------- CHECKS ---------------------------------------
 ## ------------------------------------------------------------------
 
 ## - Checking that no process is currently on going, immediately abort otherwise
-if test -f "${BASE_DIR}"/RUNS_TO_PROCESS || test -f "${BASE_DIR}"/PROCESSING ; then
+if test -f "${BASE_DIR}"/PROCESSING ; then
     echo "Samples currently being processed. Aborting now."
     exit 0
 fi
@@ -84,6 +94,7 @@ fi
 ## - Checking for new runs
 fetch_runs > "${NEW_PROCESSED_RUNS}"
 compare_runs "${OLD_PROCESSED_RUNS}" "${NEW_PROCESSED_RUNS}" > "${BASE_DIR}"/RUNS_TO_PROCESS
+rm "${NEW_PROCESSED_RUNS}"
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN(S) ------------------------
@@ -96,6 +107,20 @@ else
 
     ## - Only process a single run, the first one in line
     RUN=`cat "${BASE_DIR}"/RUNS_TO_PROCESS | head -n 1`
+    #RUN=210716_NS500150_0646_AHG2W5BGXJ
+
+    ## - Check that a sample sheet exists for this run, otherwise go to next run
+    while (test `check_sample_sheet ${RUN}`)
+    do
+        echo "Missing sample sheet for ${RUN}"
+        sed -i "s,${RUN},," "${BASE_DIR}"/RUNS_TO_PROCESS
+        sed -i '/^$/d' "${BASE_DIR}"/RUNS_TO_PROCESS
+        RUN=`cat "${BASE_DIR}"/RUNS_TO_PROCESS | head -n 1`
+        if (test "${RUN}" == '') ; then 
+            echo "No new samples with sample sheet can be processed. Finishing now"
+            exit 0
+        fi
+    done
 
     ## - Process run
     ## |--- Sync files from nextseq repo
@@ -105,13 +130,12 @@ else
     ## |--- Copy reports to Rsg_reads/reports
     ## |--- Enable Read/Write for all files
     
-    sbatch \
+    echo "Processing run ${RUN}"
+    "${SBATCH_DIR}"/sbatch \
+        -J "${RUN}" \
         -D "${BASE_DIR}" \
         -o /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".out -e /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".err \
-        --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",RUN="${RUN}" \
+        --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",RUN="${RUN}",EMAIL="${EMAIL}" \
         "${BASE_DIR}"/bin/process_run.sh 
 
 fi
-
-rm "${NEW_PROCESSED_RUNS}"
-rm "${BASE_DIR}"/RUNS_TO_PROCESS

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+#SBATCH --qos fast
 #SBATCH --cpus-per-task 12
 #SBATCH --mem 48G
 
@@ -70,12 +71,13 @@ email_start "${RUN}"
 
 ## - Cp entire run folder from nextseq repo to maestro ($BASE_DIR)
 echo "Fetching seq. run"
-rsync "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/"${RUN}"/ "${BASE_DIR}/${RUNID}"/ --recursive
+mkdir -p "${BASE_DIR}"/runs
+rsync "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/"${RUN}"/ "${BASE_DIR}"/runs/"${RUNID}"/ --recursive
 
 ## - Fix sample sheet
 echo "Fixing sample sheet"
 mkdir -p "${BASE_DIR}"/samplesheets
-sed 's/,,,,,,,//g' "${BASE_DIR}"/"${RUNID}"/SampleSheet.csv \
+sed 's/,,,,,,,//g' "${BASE_DIR}"/runs/"${RUNID}"/SampleSheet.csv \
     | sed 's/\[\(.*\)\],/\[\1\]/' \
     | sed 's/^\([0-9]*\)\,/\1/g' \
     | sed 's/^//g' \
@@ -87,7 +89,7 @@ echo "Running bcl2fastq"
 mkdir -p "${BASE_DIR}"/fastq/"${RUNID}"/
 bcl2fastq \
     --no-lane-splitting \
-    -R "${BASE_DIR}"/"${RUNID}"/ \
+    -R "${BASE_DIR}"/runs/"${RUNID}"/ \
     -o "${BASE_DIR}"/fastq/"${RUNID}"/ \
     --sample-sheet "${BASE_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv \
     --loading-threads 4 \
@@ -96,7 +98,7 @@ bcl2fastq \
 cp "${BASE_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv "${BASE_DIR}"/fastq/"${RUNID}"/SampleSheet_"${RUNID}".csv
 
 ## - Run FastQC for all the samples
-#Adaptors from https://www.outils.genomique.biologie.ens.fr/leburon/downloads/aozan-example/adapters.fasta
+#Adaptors adapted from https://www.outils.genomique.biologie.ens.fr/leburon/downloads/aozan-example/adapters.fasta
 echo "Running FastQC"
 mkdir -p "${BASE_DIR}"/fastqc/"${RUNID}"
 fastqc \
@@ -140,6 +142,7 @@ rsync "${BASE_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_HOS
 ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o=rX /pasteur/projets/policy02/Rsg_reads/run_"${RUNID}"
 
 ## - Notify end of new run being processed
+echo "Done!"
 email_finish "${RUN}"
 
 ## - Wrap up run processing
