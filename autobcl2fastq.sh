@@ -43,21 +43,8 @@ USER=jaseriza
 SSH_HOSTNAME=sftpcampus
 EMAIL=${USER}@pasteur.fr
 BASE_DIR=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq
-SHEETS_DIR="${BASE_DIR}"/samplesheets
-OLD_PROCESSED_RUNS="${BASE_DIR}"/RUNS_ACHIEVED_LATEST
+OLD_PROCESSED_RUNS="${BASE_DIR}"/RUNS_ACHIEVED
 NEW_PROCESSED_RUNS="${BASE_DIR}"/RUNS_ACHIEVED_NEW
-
-## ------------------------------------------------------------------
-## -------- LOAD REQUIRED DEPS --------------------------------------
-## ------------------------------------------------------------------
-
-module purge
-module load bcl2fastq/2.20.0
-module load graalvm/ce-java8-20.0.0
-module load fastqc/0.11.9
-module load bowtie2/2.1.0
-# multiqc, from conda base env.
-# fastq_screen, from conda base env.
 
 ## ------------------------------------------------------------------
 ## -------- HELPER FUNCTIONS ----------------------------------------
@@ -78,83 +65,13 @@ function compare_runs {
     fi
 }
 
-## - Process each run independantly
-function process_run {
-    RUNDATE=`echo $RUN | sed 's,_.*,,g'`
-    RUNNB=`echo $RUN | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
-    RUNHASH=`echo $RUN | sed 's,.*_,,g'`
-    RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
-
-    ## - Cp entire run folder to local (not ideal, but easiest for now...)
-    rsync "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/${RUN} ${BASE_DIR}/ --recursive
-    mv "${BASE_DIR}/${RUN}" "${BASE_DIR}/${RUNID}"
-
-    ## - Fix sample sheet
-    sed 's/,,,,,,,//g' "${BASE_DIR}"/"${RUNID}"/SampleSheet.csv \
-        | sed 's/\[\(.*\)\],/\[\1\]/' \
-        | sed 's/^\([0-9]*\)\,/\1/g' \
-        | sed 's/^//g' \
-        | sed 's/^$//g' \
-        | grep -v -P "^," > "${SHEETS_DIR}"/SampleSheet_"${RUNID}".csv
-
-    ## - Run bcl2fastq
-    mkdir -p "${BASE_DIR}"/fastq/"${RUNID}"/
-    bcl2fastq \
-        --no-lane-splitting \
-        -R "${BASE_DIR}"/"${RUNID}"/ \
-        -o "${BASE_DIR}"/fastq/"${RUNID}"/ \
-        --sample-sheet "${SHEETS_DIR}"/SampleSheet_"${RUNID}".csv \
-        --loading-threads 4 \
-        --processing-threads 4 \
-        --writing-threads 4
-    cp "${SHEETS_DIR}"/SampleSheet_"${RUNID}".csv "${BASE_DIR}"/fastq/"${RUNID}"/SampleSheet_"${RUNID}".csv
-
-    ## - Run FastQC for all the samples
-    #Adaptors from https://www.outils.genomique.biologie.ens.fr/leburon/downloads/aozan-example/adapters.fasta
-    mkdir -p "${BASE_DIR}"/fastqc/"${RUNID}"
-    fastqc \
-        --outdir "${BASE_DIR}"/fastqc/"${RUNID}" \
-        --noextract \
-        --threads 12 \
-        --adapters "${BASE_DIR}"/adapters.txt \
-        "${BASE_DIR}"/fastq/"${RUNID}"/*/*fastq.gz
-
-    ## - Run fastq_screen for all the samples
-    mkdir -p "${BASE_DIR}"/fastqscreen/"${RUNID}"
-    fastq_screen \
-        --outdir "${BASE_DIR}"/fastqscreen/"${RUNID}" \
-        --conf "${BASE_DIR}"/fastq_screen.conf \
-        --threads 12 \
-        "${BASE_DIR}"/fastq/"${RUNID}"/*/*fastq.gz
-
-    ## - Run MultiQC to aggregate results (bcl2fastq, fastqc, fastq_screen)
-    mkdir -p "${BASE_DIR}"/multiqc/"${RUNID}"
-    multiqc \
-        --title "${RUNID}" \
-        --outdir "${BASE_DIR}"/multiqc/"${RUNID}" \
-        --verbose \
-        --module bcl2fastq \
-        --module fastq_screen \
-        --module fastqc \
-        "${BASE_DIR}"/fastq/"${RUNID}" \
-        "${BASE_DIR}"/fastqc/"${RUNID}" \
-        "${BASE_DIR}"/fastqscreen/"${RUNID}"
-
-    ## - Copy fastq reads to Rsg_reads
-    rsync "${BASE_DIR}"/fastq/"${RUNID}"/ "${SSH_HOSTNAME}":/pasteur/projets/policy02/Rsg_reads/run_${RUNID}/ --recursive
-
-    ## - Copy reports to Rsg_reads/reports
-    rsync "${BASE_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_HOSTNAME}":/pasteur/projets/policy02/Rsg_reads/run_${RUNID}/MultiQC_"${RUNID}".html
-
-}
-
 ## - Email notifications
 function email_start {
     RUNDATE=`echo ${1} | sed 's,_.*,,g'`
     RUNNB=`echo ${1} | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
     RUNHASH=`echo ${1} | sed 's,.*_,,g'`
     RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
-    scp "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/${RUN}/SampleSheet.csv tmp
+    rsync "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/${RUN}/SampleSheet.csv tmp
     SAMPLES=`cat tmp | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
     echo "Run ${1} started @ `date`
 run: ${1}
@@ -170,7 +87,7 @@ function email_finish {
     RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
     echo "" | mail \
         -s "Finished bcl2fast & QCs for run ${1}" \
-        -a "${SHEETS_DIR}"/SampleSheet_"${RUNID}".csv \
+        -a "${BASE_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv \
         -a "${BASE_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
         ${EMAIL}
 }
@@ -179,7 +96,7 @@ function email_finish {
 ## ------------------- CHECKS ---------------------------------------
 ## ------------------------------------------------------------------
 
-## - Checking that no process is currently on going
+## - Checking that no process is currently on going, immediately abort otherwise
 if test -f "${BASE_DIR}"/RUNS_TO_PROCESS || test -f "${BASE_DIR}"/PROCESSING ; then
     echo "Samples currently being processed. Aborting now."
     exit 0
@@ -203,20 +120,35 @@ if (test `wc -l "${BASE_DIR}"/RUNS_TO_PROCESS | sed 's, .*,,'` -eq 0) ; then
     echo "No runs to process. Exiting now."
     exit 0
 else 
+    cat "${BASE_DIR}"/RUNS_TO_PROCESS
     for RUN in `cat "${BASE_DIR}"/RUNS_TO_PROCESS`
     do
+
         touch "${BASE_DIR}"/PROCESSING
-        RUNDATE=`echo $RUN | sed 's,_.*,,g'`
-        RUNNB=`echo $RUN | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
-        RUNHASH=`echo $RUN | sed 's,.*_,,g'`
-        RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
+
+        ## - Notify start of new run being processed
         email_start "${RUN}"
-        process_run "${RUN}"
+
+        ## - Process run
+        ## |--- Sync files from nextseq repo
+        ## |--- Fix sample sheet
+        ## |--- Run bcl2fastq, fastqc, fastq_screen, multiQC as a SLURM job
+        ## |--- Copy fastq reads to Rsg_reads
+        ## |--- Copy reports to Rsg_reads/reports
+        ## |--- Enable Read/Write for all files
+        
+        sbatch \
+            -D "${BASE_DIR}" \
+            -o /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".out -e /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".err \
+            --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",RUN="${RUN}" \
+            "${BASE_DIR}"/bin/process_run.sh 
+
+        ## - Notify end of new run being processed
         email_finish "${RUN}"
         rm "${BASE_DIR}"/PROCESSING
-        # rm "${BASE_DIR}"/"${RUNID}"
+
     done
 fi
 
+rm "${NEW_PROCESSED_RUNS}"
 rm "${BASE_DIR}"/RUNS_TO_PROCESS
-mv "${NEW_PROCESSED_RUNS}" "${OLD_PROCESSED_RUNS}"
