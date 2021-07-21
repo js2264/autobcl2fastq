@@ -1,9 +1,3 @@
-runs/
-fastq/
-fastqc/
-fastqscreen/
-multiqc/
-samplesheets/
 adapters.fa
-RUNS*
+ARCHIVED_RUNS
 PROCESSING

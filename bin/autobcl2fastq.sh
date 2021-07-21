@@ -1,9 +1,5 @@
 #!/bin/bash
 
-#SBATCH --cpus-per-task 12
-#SBATCH --mem 48G
-#SBATCH -o autobcl2fast.out -e autobcl2fast.err
-
 VERSION=0.1.0
 
 ## ------------------------------------------------------------------
@@ -40,12 +36,16 @@ done
 ## ------------------------------------------------------------------
 
 USER=jaseriza
-SSH_HOSTNAME=sftpcampus
 EMAIL=${USER}@pasteur.fr
-SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin
-BASE_DIR=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq
-OLD_PROCESSED_RUNS="${BASE_DIR}"/RUNS_ACHIEVED
-NEW_PROCESSED_RUNS="${BASE_DIR}"/RUNS_ACHIEVED_NEW
+
+SSH_HOSTNAME=sftpcampus
+SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
+DESTINATION=/pasteur/projets/policy02/Rsg_reads # Where the fastq are written at the end, should be `Rsg_reads`
+
+BASE_DIR=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq # Where the script is hosted, should be in `rsg_fast`
+WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
+SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
+# DESTINATION=/pasteur/sonic/scratch/users/jaseriza
 
 ## ------------------------------------------------------------------
 ## -------- HELPER FUNCTIONS ----------------------------------------
@@ -86,15 +86,15 @@ if test -f "${BASE_DIR}"/PROCESSING ; then
 fi
 
 ## - Checking that previous processes are registered (at least an empty file exists)
-if test ! -f "${OLD_PROCESSED_RUNS}" ; then
-    echo "No previous runs are registered. A file named ${OLD_PROCESSED_RUNS} should exist. Aborting now."
+if test ! -f "${BASE_DIR}"/ARCHIVED_RUNS ; then
+    echo "No previous runs are registered. A file named "${BASE_DIR}"/ARCHIVED_RUNS should exist. Aborting now."
     exit 0
 fi
 
 ## - Checking for new runs
-fetch_runs > "${NEW_PROCESSED_RUNS}"
-compare_runs "${OLD_PROCESSED_RUNS}" "${NEW_PROCESSED_RUNS}" > "${BASE_DIR}"/RUNS_TO_PROCESS
-rm "${NEW_PROCESSED_RUNS}"
+fetch_runs > "${BASE_DIR}"/NEW_RUNS
+compare_runs "${BASE_DIR}"/ARCHIVED_RUNS "${BASE_DIR}"/NEW_RUNS > "${BASE_DIR}"/RUNS_TO_PROCESS
+rm "${BASE_DIR}"/NEW_RUNS
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN(S) ------------------------
@@ -118,9 +118,11 @@ else
         RUN=`cat "${BASE_DIR}"/RUNS_TO_PROCESS | head -n 1`
         if (test "${RUN}" == '') ; then 
             echo "No new samples with sample sheet can be processed. Finishing now"
+            rm "${BASE_DIR}"/RUNS_TO_PROCESS
             exit 0
         fi
     done
+    rm "${BASE_DIR}"/RUNS_TO_PROCESS
 
     ## - Process run
     ## |--- Sync files from nextseq repo
@@ -135,7 +137,7 @@ else
         -J "${RUN}" \
         -D "${BASE_DIR}" \
         -o /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".out -e /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".err \
-        --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",RUN="${RUN}",EMAIL="${EMAIL}" \
+        --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",WORKING_DIR="${WORKING_DIR}",RUN="${RUN}",EMAIL="${EMAIL}",SOURCE="${SOURCE}",DESTINATION="${DESTINATION}" \
         "${BASE_DIR}"/bin/process_run.sh 
-
+    
 fi
