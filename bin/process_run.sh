@@ -55,9 +55,6 @@ function fn_log {
 ## -------- PROCESSING ----------------------------------------------
 ## ------------------------------------------------------------------
 
-## - Start processing
-touch "${WORKING_DIR}"/PROCESSING
-
 ## - Notify start of new run being processed
 email_start "${RUN}"
 
@@ -142,5 +139,5 @@ email_finish "${RUNID}"
 # rm -r "${WORKING_DIR}"/runs/"${RUNID}"/
 
 ## - Wrap up run processing
-rm "${WORKING_DIR}"/PROCESSING
 echo "${RUN}" >> "${WORKING_DIR}"/RUNS_ACHIEVED
+rm "${WORKING_DIR}"/PROCESSING

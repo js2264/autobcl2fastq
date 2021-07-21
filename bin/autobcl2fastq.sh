@@ -80,7 +80,7 @@ function check_sample_sheet {
 ## ------------------------------------------------------------------
 
 ## - Checking that no process is currently on going, immediately abort otherwise
-if ( test -f "${WORKING_DIR}"/PROCESSING || test `sacct --format=Jobname%35,state | grep 'NS500150' | grep PENDING | wc -l` -gt 0 ) ; then
+if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=Jobname%35,state | grep 'NS500150' | grep PENDING | wc -l` -gt 0 ) ; then
     echo "Samples currently being processed. Aborting now."
     exit 0
 fi
@@ -124,10 +124,13 @@ else
     done
     rm "${WORKING_DIR}"/RUNS_TO_PROCESS
 
+    ## - Start processing
+    touch "${WORKING_DIR}"/PROCESSING
+
     ## - Process run
     ## |--- Sync files from nextseq repo
     ## |--- Fix sample sheet
-    ## |--- Run bcl2fastq, fastqc, fastq_screen, multiQC as a SLURM job
+    ## |--- Run bcl2fastq, fastqc, fastq_screen, multiQC 
     ## |--- Copy fastq reads to Rsg_reads
     ## |--- Copy reports to Rsg_reads/reports
     ## |--- Enable Read/Write for all files
