@@ -65,33 +65,6 @@ function compare_runs {
     fi
 }
 
-## - Email notifications
-function email_start {
-    RUNDATE=`echo ${1} | sed 's,_.*,,g'`
-    RUNNB=`echo ${1} | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
-    RUNHASH=`echo ${1} | sed 's,.*_,,g'`
-    RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
-    rsync "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/${RUN}/SampleSheet.csv tmp
-    SAMPLES=`cat tmp | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
-    echo "Run ${1} started @ `date`
-run: ${1}
-path: /pasteur/gaia/projets/p01/nextseq/
-samples: ${SAMPLES}" | mail -s "Starting bcl2fast & QCs for run ${1}" ${EMAIL}
-    rm tmp
-}
-
-function email_finish {
-    RUNDATE=`echo ${1} | sed 's,_.*,,g'`
-    RUNNB=`echo ${1} | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
-    RUNHASH=`echo ${1} | sed 's,.*_,,g'`
-    RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
-    echo "" | mail \
-        -s "Finished bcl2fast & QCs for run ${1}" \
-        -a "${BASE_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv \
-        -a "${BASE_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
-        ${EMAIL}
-}
-
 ## ------------------------------------------------------------------
 ## ------------------- CHECKS ---------------------------------------
 ## ------------------------------------------------------------------
@@ -124,11 +97,6 @@ else
     for RUN in `cat "${BASE_DIR}"/RUNS_TO_PROCESS`
     do
 
-        touch "${BASE_DIR}"/PROCESSING
-
-        ## - Notify start of new run being processed
-        email_start "${RUN}"
-
         ## - Process run
         ## |--- Sync files from nextseq repo
         ## |--- Fix sample sheet
@@ -142,10 +110,6 @@ else
             -o /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".out -e /pasteur/sonic/homes/jaseriza/autobcl2fast_"${RUN}".err \
             --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",RUN="${RUN}" \
             "${BASE_DIR}"/bin/process_run.sh 
-
-        ## - Notify end of new run being processed
-        email_finish "${RUN}"
-        rm "${BASE_DIR}"/PROCESSING
 
     done
 fi

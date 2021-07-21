@@ -29,8 +29,44 @@ RUNHASH=`echo "${RUN}" | sed 's,.*_,,g'`
 RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
 
 ## ------------------------------------------------------------------
+## -------- HELPER FUNCTIONS ----------------------------------------
+## ------------------------------------------------------------------
+
+function email_start {
+    RUNDATE=`echo ${1} | sed 's,_.*,,g'`
+    RUNNB=`echo ${1} | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
+    RUNHASH=`echo ${1} | sed 's,.*_,,g'`
+    RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
+    rsync "${SSH_HOSTNAME}":/pasteur/gaia/projets/p01/nextseq/${RUN}/SampleSheet.csv tmp
+    SAMPLES=`cat tmp | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
+    echo "Run ${1} started @ `date`
+run: ${1}
+path: /pasteur/gaia/projets/p01/nextseq/
+samples: ${SAMPLES}" | mail -s "Starting bcl2fast & QCs for run ${1}" ${EMAIL}
+    rm tmp
+}
+
+function email_finish {
+    RUNDATE=`echo ${1} | sed 's,_.*,,g'`
+    RUNNB=`echo ${1} | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
+    RUNHASH=`echo ${1} | sed 's,.*_,,g'`
+    RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
+    echo "" | mail \
+        -s "Finished bcl2fast & QCs for run ${1}" \
+        -a "${BASE_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv \
+        -a "${BASE_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
+        ${EMAIL}
+}
+
+## ------------------------------------------------------------------
 ## -------- PROCESSING ----------------------------------------------
 ## ------------------------------------------------------------------
+
+## - Start processing
+touch "${BASE_DIR}"/PROCESSING
+
+## - Notify start of new run being processed
+email_start "${RUN}"
 
 ## - Cp entire run folder from nextseq repo to maestro ($BASE_DIR)
 echo "Fetching seq. run"
@@ -103,3 +139,9 @@ rsync "${BASE_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_HOS
 ## - Enable Read/Write for all files
 ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o=rX /pasteur/projets/policy02/Rsg_reads/run_"${RUNID}"
 
+## - Notify end of new run being processed
+email_finish "${RUN}"
+
+## - Wrap up run processing
+rm "${BASE_DIR}"/PROCESSING
+echo "${RUN}" >> "${BASE_DIR}"/RUNS_ACHIEVED
