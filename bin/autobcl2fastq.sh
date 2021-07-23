@@ -37,15 +37,14 @@ done
 
 USER=jaseriza
 EMAIL=${USER}@pasteur.fr
-
 SSH_HOSTNAME=sftpcampus
 SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
-DESTINATION=/pasteur/projets/policy02/Rsg_reads # Where the fastq are written at the end, should be `Rsg_reads`
+DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
 # DESTINATION=/pasteur/sonic/scratch/users/jaseriza
-
 BASE_DIR=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq # Where the script is hosted, should be in `rsg_fast`
 WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
+#RUN=200505_NS500150_0533_AH7HV7AFX2
 
 ## ------------------------------------------------------------------
 ## -------- HELPER FUNCTIONS ----------------------------------------
@@ -75,6 +74,15 @@ function check_sample_sheet {
     fi
 }
 
+## - Email notification
+function email_start {
+    rsync "${SSH_HOSTNAME}":"${SOURCE}"/${RUN}/SampleSheet.csv tmp
+    samples=`cat tmp | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
+    echo -e "Run ${RUN} started @ `date`\npath: "${SOURCE}"/\nsamples: ${samples}" | \
+        mailx -s "Submitted run ${RUN} to autobcl2fastq" ${EMAIL}
+    rm tmp
+}
+
 ## ------------------------------------------------------------------
 ## ------------------- CHECKS ---------------------------------------
 ## ------------------------------------------------------------------
@@ -86,15 +94,15 @@ if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=J
 fi
 
 ## - Checking that previous processes are registered (at least an empty file exists)
-if ( test ! -f "${WORKING_DIR}"/ARCHIVED_RUNS ) ; then
-    echo "No previous runs are registered. A file named "${WORKING_DIR}"/ARCHIVED_RUNS should exist. Aborting now."
+if ( test ! -f "${WORKING_DIR}"/PROCESSED_RUNS ) ; then
+    echo "No previous runs are registered. A file named "${WORKING_DIR}"/PROCESSED_RUNS should exist. Aborting now."
     exit 0
 fi
 
 ## - Checking for new runs
-fetch_runs > "${WORKING_DIR}"/NEW_RUNS
-compare_runs "${WORKING_DIR}"/ARCHIVED_RUNS "${WORKING_DIR}"/NEW_RUNS > "${WORKING_DIR}"/RUNS_TO_PROCESS
-rm "${WORKING_DIR}"/NEW_RUNS
+fetch_runs > "${WORKING_DIR}"/ALL_RUNS
+compare_runs "${WORKING_DIR}"/PROCESSED_RUNS "${WORKING_DIR}"/ALL_RUNS > "${WORKING_DIR}"/RUNS_TO_PROCESS
+rm "${WORKING_DIR}"/ALL_RUNS
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN(S) ------------------------
@@ -107,7 +115,6 @@ else
 
     ## - Only process a single run, the first one in line
     RUN=`cat "${WORKING_DIR}"/RUNS_TO_PROCESS | head -n 1`
-    #RUN=210716_NS500150_0646_AHG2W5BGXJ
 
     ## - Check that a sample sheet exists for this run, otherwise go to next run
     while ( test `check_sample_sheet ${RUN}` )
@@ -125,7 +132,10 @@ else
     rm "${WORKING_DIR}"/RUNS_TO_PROCESS
 
     ## - Start processing
-    touch "${WORKING_DIR}"/PROCESSING
+    echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
+    
+    ## - Notify start of new run being processed
+    email_start
 
     ## - Process run
     ## |--- Sync files from nextseq repo

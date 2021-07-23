@@ -20,30 +20,35 @@ module load bowtie2/2.1.0
 ## -------- ENV. VARIABLES ------------------------------------------
 ## ------------------------------------------------------------------
 
+# USER=jaseriza
+# EMAIL=${USER}@pasteur.fr
+# SSH_HOSTNAME=sftpcampus
+# SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
+# DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
+# BASE_DIR=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq # Where the script is hosted, should be in `rsg_fast`
+# WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
+# SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
+# RUN=200505_NS500150_0533_AH7HV7AFX2
+
 RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
 RUNNB=`echo "${RUN}" | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
 RUNHASH=`echo "${RUN}" | sed 's,.*_,,g'`
-RUNID="${RUNDATE}_${RUNNB}_${RUNHASH}"
+RUNID="NSQ${RUNNB}_${RUNDATE}"
 
 ## ------------------------------------------------------------------
 ## -------- HELPER FUNCTIONS ----------------------------------------
 ## ------------------------------------------------------------------
 
-function email_start {
-    rsync "${SSH_HOSTNAME}":"${SOURCE}"/${1}/SampleSheet.csv tmp
-    samples=`cat tmp | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
-    echo "Run ${1} started @ `date`
-run: ${1}
-path: "${SOURCE}"/
-samples: ${samples}" | mail -s "Submitted run ${1} to autobcl2fastq" ${EMAIL}
-    rm tmp
-}
-
 function email_finish {
-    echo "" | mail \
-        -s "Finished bcl2fast & QCs for run ${1}" \
-        -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${1}".csv \
-        -a "${WORKING_DIR}"/multiqc/"${1}"/"${1}"_multiqc_report.html \
+    echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
+        -s "Finished processing run ${RUNID} with autobcl2fastq" \
+        -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv \
+        -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
+        ${EMAIL}
+    echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
+        -s "Finished processing run ${RUNID} with autobcl2fastq" \
+        -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv \
+        -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
         ${EMAIL}
 }
 
@@ -54,9 +59,6 @@ function fn_log {
 ## ------------------------------------------------------------------
 ## -------- PROCESSING ----------------------------------------------
 ## ------------------------------------------------------------------
-
-## - Notify start of new run being processed
-email_start "${RUN}"
 
 ## - Cp entire run folder from nextseq repo to maestro ($WORKING_DIR)
 fn_log "Fetching seq. run"
@@ -118,26 +120,32 @@ multiqc \
     --module fastqc \
     "${WORKING_DIR}"/fastq/"${RUNID}" \
     "${WORKING_DIR}"/fastqc/"${RUNID}" \
-    "${WORKING_DIR}"/fastqscreen/"${RUNID}"
+    "${WORKING_DIR}"/fastqscreen/"${RUNID}" 1>&2
 
-## - Copy fastq reads to Rsg_reads
+## - Copy fastq reads to Rsg_reads/run.../
 fn_log "Exporting fastq reads"
 rsync "${WORKING_DIR}"/fastq/"${RUNID}"/ "${SSH_HOSTNAME}":"${DESTINATION}"/run_"${RUNID}"/ --recursive
 
-## - Copy reports to Rsg_reads/reports
+## - Copy reports to Rsg_reads/run.../reports
 rsync "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_HOSTNAME}":"${DESTINATION}"/run_"${RUNID}"/MultiQC_"${RUNID}".html
 
 ## - Enable Read/Write for all files
 ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o=rX "${DESTINATION}"/run_"${RUNID}"
 
-## - Notify end of new run being processed
-fn_log "Done!"
-email_finish "${RUNID}"
+## - Notify end of processing
+
+email_finish
+
+email_finish
+
+##
 
 ## - Cleaning up big files
 # rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
 # rm -r "${WORKING_DIR}"/runs/"${RUNID}"/
 
 ## - Wrap up run processing
-echo "${RUN}" >> "${WORKING_DIR}"/RUNS_ACHIEVED
+echo "${RUN}" >> "${WORKING_DIR}"/PROCESSED_RUNS
 rm "${WORKING_DIR}"/PROCESSING
+
+fn_log "Done!"
