@@ -38,6 +38,7 @@ done
 USER=jaseriza
 EMAIL=${USER}@pasteur.fr
 SSH_HOSTNAME=sftpcampus
+GROUP=Rsg #ownership group for the sample sheets
 SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
 DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
 # DESTINATION=/pasteur/sonic/scratch/users/jaseriza
@@ -68,10 +69,41 @@ function compare_runs {
 ## - Check that sample sheet exists for on going run
 function check_sample_sheet { 
     if ssh "${SSH_HOSTNAME}" "test -e /pasteur/gaia/projets/p01/nextseq/${1}/SampleSheet.csv"; then
-        exit 0
+        echo 0
     else
-        echo 1
+        exit 1
     fi
+}
+
+## - Check that the run (samplesheet) owner belongs to Rsg
+function check_run_ownership { 
+    owner=`ssh "${SSH_HOSTNAME}" "stat -c %U /pasteur/gaia/projets/p01/nextseq/${1}/SampleSheet.csv"`
+    if [ `groups "${owner}" | grep -c "${GROUP}"` -eq 1 ] ; then
+        echo 0
+    else
+        exit 1
+    fi
+}
+
+## - Filter runs to process (existing sample sheet with correct group for the ownership)
+function filter_runs {
+    # "${1}" is "${WORKING_DIR}"/RUNS_TO_PROCESS file 
+
+    for RUN in `cat "${WORKING_DIR}"/RUNS_TO_PROCESS`
+    do 
+        ## Check that there is a sample sheet
+        if ( ! test `check_sample_sheet ${RUN}` ) ; then
+            echo "Missing sample sheet for ${RUN}"
+            sed -i "s,${RUN},," "${WORKING_DIR}"/RUNS_TO_PROCESS
+            sed -i '/^$/d' "${WORKING_DIR}"/RUNS_TO_PROCESS
+        
+        ## Check that the run has the correct ownership
+        elif ( ! test `check_run_ownership ${RUN}` ) ; then
+            echo "Run not owned by Rsg"
+            sed -i "s,${RUN},," "${WORKING_DIR}"/RUNS_TO_PROCESS
+            sed -i '/^$/d' "${WORKING_DIR}"/RUNS_TO_PROCESS
+        fi
+    done
 }
 
 ## - Email notification
@@ -102,6 +134,7 @@ fi
 ## - Checking for new runs
 fetch_runs > "${WORKING_DIR}"/ALL_RUNS
 compare_runs "${WORKING_DIR}"/PROCESSED_RUNS "${WORKING_DIR}"/ALL_RUNS > "${WORKING_DIR}"/RUNS_TO_PROCESS
+filter_runs "${WORKING_DIR}"/RUNS_TO_PROCESS
 rm "${WORKING_DIR}"/ALL_RUNS
 
 ## ------------------------------------------------------------------
@@ -111,25 +144,11 @@ rm "${WORKING_DIR}"/ALL_RUNS
 if ( test `wc -l "${WORKING_DIR}"/RUNS_TO_PROCESS | sed 's, .*,,'` -eq 0 ) ; then
     echo "No runs to process. Exiting now."
     exit 0
+    
 else 
 
     ## - Only process a single run, the first one in line
     RUN=`cat "${WORKING_DIR}"/RUNS_TO_PROCESS | head -n 1`
-
-    ## - Check that a sample sheet exists for this run, otherwise go to next run
-    while ( test `check_sample_sheet ${RUN}` )
-    do
-        echo "Missing sample sheet for ${RUN}"
-        sed -i "s,${RUN},," "${WORKING_DIR}"/RUNS_TO_PROCESS
-        sed -i '/^$/d' "${WORKING_DIR}"/RUNS_TO_PROCESS
-        RUN=`cat "${WORKING_DIR}"/RUNS_TO_PROCESS | head -n 1`
-        if ( test "${RUN}" == '' ) ; then 
-            echo "No new samples with sample sheet can be processed. Finishing now"
-            rm "${WORKING_DIR}"/RUNS_TO_PROCESS
-            exit 0
-        fi
-    done
-    rm "${WORKING_DIR}"/RUNS_TO_PROCESS
 
     ## - Start processing
     echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
