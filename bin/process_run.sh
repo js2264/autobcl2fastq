@@ -136,7 +136,7 @@ ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o=rX "${DESTINATION}"/run_"${RUNID}"
 
 email_finish
 
-email_finish
+# email_finish
 
 ##
 
