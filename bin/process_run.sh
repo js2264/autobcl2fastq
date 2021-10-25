@@ -20,16 +20,6 @@ module load bowtie2/2.1.0
 ## -------- ENV. VARIABLES ------------------------------------------
 ## ------------------------------------------------------------------
 
-# USER=jaseriza
-# EMAIL=${USER}@pasteur.fr
-# SSH_HOSTNAME=sftpcampus
-# SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
-# DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
-# BASE_DIR=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq # Where the script is hosted, should be in `rsg_fast`
-# WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
-# SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
-# RUN=200505_NS500150_0533_AH7HV7AFX2
-
 RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
 RUNNB=`echo "${RUN}" | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
 RUNHASH=`echo "${RUN}" | sed 's,.*_,,g'`
@@ -88,6 +78,14 @@ bcl2fastq \
     --writing-threads 6
 cp "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv "${WORKING_DIR}"/fastq/"${RUNID}"/SampleSheet_"${RUNID}".csv
 
+## - Rename all fastqs
+for FILE in `find "${WORKING_DIR}"/fastq/"${RUNID}"/ -iname "*.fq.gz"`
+do
+    newfile=`echo ${FILE} | sed -e 's,_001.fastq.gz,.fq.gz,' | sed -e 's,_S[0-9]_R,_R,' | sed -e 's,_S[0-9][0-9]_R,_R,'`
+    fn_log -e "Renaming\t${FILE}\t->\t${newfile}"
+    mv "${FILE}" "${newfile}"
+done
+
 ## - Run FastQC for all the samples
 #Adaptors adapted from https://www.outils.genomique.biologie.ens.fr/leburon/downloads/aozan-example/adapters.fasta
 fn_log "Running FastQC"
@@ -97,7 +95,7 @@ fastqc \
     --noextract \
     --threads 12 \
     --adapters "${BASE_DIR}"/adapters.txt \
-    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*fastq.gz 1>&2
+    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*fq.gz 1>&2
 
 ## - Run fastq_screen for all the samples
 fn_log "Running fastq_screen"
@@ -106,7 +104,7 @@ fastq_screen \
     --outdir "${WORKING_DIR}"/fastqscreen/"${RUNID}" \
     --conf "${BASE_DIR}"/fastq_screen.conf \
     --threads 12 \
-    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*fastq.gz
+    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*fq.gz
 
 ## - Run MultiQC to aggregate results (bcl2fastq, fastqc, fastq_screen)
 fn_log "Running multiqc"
@@ -133,12 +131,7 @@ rsync "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_
 ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o=rX "${DESTINATION}"/run_"${RUNID}"
 
 ## - Notify end of processing
-
 email_finish
-
-# email_finish
-
-##
 
 ## - Cleaning up big files
 # rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
@@ -147,5 +140,6 @@ email_finish
 ## - Wrap up run processing
 echo "${RUN}" >> "${WORKING_DIR}"/PROCESSED_RUNS
 rm "${WORKING_DIR}"/PROCESSING
+ssh "${SSH_HOSTNAME}" touch "${DESTINATION}"/run_"${RUNID}"/DONE
 
 fn_log "Done!"
