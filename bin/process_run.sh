@@ -74,7 +74,7 @@ bcl2fastq \
 cp "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv "${WORKING_DIR}"/fastq/"${RUNID}"/SampleSheet_"${RUNID}".csv
 
 ## - Rename all fastqs
-for FILE in `find "${WORKING_DIR}"/fastq/"${RUNID}"/ -iname "*.fq.gz"`
+for FILE in `find "${WORKING_DIR}"/fastq/"${RUNID}"/ -iname "*.fastq.gz"`
 do
     newfile=`echo ${FILE} | sed -e 's,_001.fastq.gz,.fq.gz,' | sed -e 's,_S[0-9]_R,_R,' | sed -e 's,_S[0-9][0-9]_R,_R,'`
     fn_log -e "Renaming\t${FILE}\t->\t${newfile}"
