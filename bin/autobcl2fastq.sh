@@ -5,10 +5,10 @@ VERSION=0.2.0
 ## ------------------------------------------------------------------
 ## ------------------- USAGE ----------------------------------------
 ## ------------------------------------------------------------------
+# Get absolute script path, handling symlink, names with spaces and starting with hyphens
+SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 function usage {
-    # Get absolute script path, handling symlink, names with spaces and starting with hyphens
-    SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
     echo "This script should be launched as a cron job, every hour or so. To do so, run the following commands"
     echo "Written by J. Serizay"
     echo " "
