@@ -1,15 +1,14 @@
 #!/bin/bash
 
 VERSION=0.2.0
+SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
 
 ## ------------------------------------------------------------------
 ## ------------------- USAGE ----------------------------------------
 ## ------------------------------------------------------------------
-# Get absolute script path, handling symlink, names with spaces and starting with hyphens
-SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 function usage {
-    echo "This script should be launched as a cron job, every hour or so. To do so, run the following commands"
+    echo "This script should be launched as a cron job, every 10' or so. To do so, run the following commands"
     echo "Written by J. Serizay"
     echo " "
     echo "crontab -l > mycron"
@@ -38,16 +37,14 @@ done
 ## ------------------------------------------------------------------
 
 USER=jaseriza
-EMAIL=${USER}@pasteur.fr
+EMAIL="${USER}"@pasteur.fr
 SSH_HOSTNAME=sftpcampus
 GROUP=Rsg #ownership group for the sample sheets
 SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
 DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
-# DESTINATION=/pasteur/sonic/scratch/users/jaseriza
-BASE_DIR="$SCRIPTPATH" # Where the script is hosted, should be in `rsg_fast`
+BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `rsg_fast`
 WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
-#RUN=200505_NS500150_0533_AH7HV7AFX2
 
 ## ------------------------------------------------------------------
 ## -------- HELPER FUNCTIONS ----------------------------------------

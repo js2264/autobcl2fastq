@@ -35,11 +35,6 @@ function email_finish {
         -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv \
         -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
         ${EMAIL}
-    echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
-        -s "Finished processing run ${RUNID} with autobcl2fastq" \
-        -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNID}".csv \
-        -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
-        ${EMAIL}
 }
 
 function fn_log {
@@ -134,8 +129,8 @@ ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o= "${DESTINATION}"/run_"${RUNID}"
 email_finish
 
 ## - Cleaning up big files
-# rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
-# rm -r "${WORKING_DIR}"/runs/"${RUNID}"/
+rm -r "${WORKING_DIR}"/runs/"${RUNID}"/
+rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
 
 ## - Wrap up run processing
 echo "${RUN}" >> "${WORKING_DIR}"/PROCESSED_RUNS
