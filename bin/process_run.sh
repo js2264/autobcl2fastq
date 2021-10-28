@@ -23,7 +23,7 @@ module load bowtie2/2.1.0
 RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
 RUNNB=`echo "${RUN}" | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
 RUNHASH=`echo "${RUN}" | sed 's,.*_,,g'`
-RUNID="NSQ${RUNNB}_${RUNDATE}"
+RUNID="${RUNNB}_${RUNDATE}_${RUNHASH}"
 
 ## ------------------------------------------------------------------
 ## -------- HELPER FUNCTIONS ----------------------------------------
@@ -49,11 +49,11 @@ bcl2fastq \
     --no-lane-splitting \
     -R "${WORKING_DIR}"/runs/"${RUNID}"/ \
     -o "${WORKING_DIR}"/fastq/"${RUNID}"/ \
-    --sample-sheet "${WORKING_DIR}"/samplesheets/SampleSheet_NSQ"${RUNNB}".csv \
+    --sample-sheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
     --loading-threads 6 \
     --processing-threads 6 \
     --writing-threads 6
-cp "${WORKING_DIR}"/samplesheets/SampleSheet_NSQ"${RUNNB}".csv "${WORKING_DIR}"/fastq/"${RUNID}"/SampleSheet_NSQ"${RUNNB}".csv
+cp "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv "${WORKING_DIR}"/fastq/"${RUNID}"/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
 
 ## - Rename all fastqs
 fn_log "Fixing fastq names"
@@ -110,7 +110,7 @@ ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o= "${DESTINATION}"/run_"${RUNID}"
 ## - Notify end of processing
 echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
     -s "Finished processing run ${RUNID} with autobcl2fastq" \
-    -a "${WORKING_DIR}"/samplesheets/SampleSheet_NSQ"${RUNNB}".csv \
+    -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
     -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
     ${EMAIL}
 
