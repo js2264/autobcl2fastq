@@ -105,11 +105,12 @@ rsync "${WORKING_DIR}"/fastq/"${RUNID}"/ "${SSH_HOSTNAME}":"${DESTINATION}"/run_
 rsync "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_HOSTNAME}":"${DESTINATION}"/run_"${RUNID}"/MultiQC_"${RUNID}".html
 
 ## - Enable Read/Write for all files
+ssh "${SSH_HOSTNAME}" touch "${DESTINATION}"/run_"${RUNID}"/DONE
 ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o= "${DESTINATION}"/run_"${RUNID}"
 
 ## - Notify end of processing
 echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
-    -s "Finished processing run ${RUNID} with autobcl2fastq" \
+    -s "[CLUSTER INFO] Finished processing run ${RUNID} with autobcl2fastq" \
     -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
     -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
     ${EMAIL}
@@ -120,6 +121,5 @@ rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
 
 ## - Wrap up run processing
 rm "${WORKING_DIR}"/PROCESSING
-ssh "${SSH_HOSTNAME}" touch "${DESTINATION}"/run_"${RUNID}"/DONE
 
 fn_log "Done!"
