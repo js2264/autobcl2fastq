@@ -83,7 +83,7 @@ function fix_samplesheet {
 function email_start {
     SAMPLES=`cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
     echo -e "Run ${RUN} started @ `date`\npath: "${SOURCE}"/\nsamples: ${SAMPLES}" | mailx \
-        -s "Submitted run ${RUN} to autobcl2fastq" \
+        -s "[CLUSTER INFO] Submitted run ${RUN} to autobcl2fastq" \
         -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
         ${EMAIL} 
 }
@@ -143,6 +143,10 @@ rm "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS
 ## - Download run sample sheet from rsgteams
 fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
 fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
+
+## - Copy sample sheet to `nextseq` project
+scp "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv "${SSH_HOSTNAME}":"${SOURCE}"/"${RUN}"/
+ssh "${SSH_HOSTNAME}" chmod 660 "${SOURCE}"/"${RUN}"//SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
 
 ## - Notify start of new run being processed
 email_start
