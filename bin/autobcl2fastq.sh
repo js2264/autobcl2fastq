@@ -72,7 +72,6 @@ function fix_samplesheet {
     write.table(z, '"${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${RUNNB}"_fixed.csv', quote = FALSE, row.names = FALSE, col.names = TRUE, sep = ',')
     "`
     "${BIN_DIR}"/Rscript <(echo "${cmds}")
-    cp "${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${RUNNB}".xlsx "${WORKING_DIR}"/samplesheets/
     echo "[Header]
     Date,"${RUNDATE}"
     Workflow,GenerateFASTQ
