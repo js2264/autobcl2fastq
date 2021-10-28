@@ -29,39 +29,6 @@ RUNID="NSQ${RUNNB}_${RUNDATE}"
 ## -------- HELPER FUNCTIONS ----------------------------------------
 ## ------------------------------------------------------------------
 
-function fix_samplesheet {
-    rclone copy GDriveJS:/rsg/rsgsheet_NSQ"${1}".xlsx "${WORKING_DIR}"/rsgsheets/
-    cp "${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${1}".xlsx "${WORKING_DIR}"/samplesheets/rsgsheet_NSQ"${1}".xlsx
-    xlsx2csv "${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${1}".xlsx | cut -f 1-8 -d, | grep -v ^, | grep -v ^[0-9]*,, > "${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${1}".csv
-    cmds=`echo -e "
-    x <- read.csv('"${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${1}".csv') ;
-    y <- read.csv('${BASE_DIR}/indices.txt', header = TRUE, sep = '\\\\\t') ; 
-    x <- merge(x, y, by = 'barcode_well') ;
-    z <- data.frame(Sample_ID = x\\$sample_id, Sample_Name = x\\$sample_id, Sample_Plate = '', Sample_Well = x\\$barcode_well, I7_Index_ID = '', index = x\\$i7_sequence, I5_Index_ID = '', index2 = x\\$i5_sequence, Sample_Project = gsub('[0-9].*', '', x\\$sample_id)) ;
-    write.table(z, '"${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${1}"_fixed.csv', quote = FALSE, row.names = FALSE, col.names = TRUE, sep = ',')
-    "`
-    Rscript <(echo "${cmds}")
-    cp "${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${1}".xlsx "${WORKING_DIR}"/samplesheets/
-    echo "[Header]
-    Date,"${RUNDATE}"
-    Workflow,GenerateFASTQ
-    Experiment Name,NSQ"${1}"
-
-    [Data]
-    " | sed 's/^[ \t]*//' > "${2}"
-    cat "${WORKING_DIR}"/rsgsheets/rsgsheet_NSQ"${1}"_fixed.csv >> "${2}"
-
-    rm -rf "${WORKING_DIR}"/rsgsheets/
-}
-
-function email_finish {
-    echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
-        -s "Finished processing run ${RUNID} with autobcl2fastq" \
-        -a "${WORKING_DIR}"/samplesheets/SampleSheet_NSQ"${RUNNB}".csv \
-        -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
-        ${EMAIL}
-}
-
 function fn_log {
     echo -e "`date "+%y-%m-%d %H:%M:%S"` [INFO] $@"
 }
@@ -74,10 +41,6 @@ function fn_log {
 fn_log "Fetching sequencing run data"
 mkdir -p "${WORKING_DIR}"/runs
 rsync "${SSH_HOSTNAME}":"${SOURCE}"/"${RUN}"/ "${WORKING_DIR}"/runs/"${RUNID}"/ --recursive
-
-## - Download corresponding sample sheet from GDrive:rsg/
-fn_log "Fetching/fixing sample sheet"
-fix_samplesheet "${RUNNB}" "${WORKING_DIR}"/samplesheets/SampleSheet_NSQ"${RUNNB}".csv
 
 ## - Run bcl2fastq
 fn_log "Running bcl2fastq"
@@ -145,14 +108,17 @@ rsync "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_
 ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o= "${DESTINATION}"/run_"${RUNID}"
 
 ## - Notify end of processing
-email_finish
+echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
+    -s "Finished processing run ${RUNID} with autobcl2fastq" \
+    -a "${WORKING_DIR}"/samplesheets/SampleSheet_NSQ"${RUNNB}".csv \
+    -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
+    ${EMAIL}
 
 ## - Cleaning up big files
 rm -r "${WORKING_DIR}"/runs/"${RUNID}"/
 rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
 
 ## - Wrap up run processing
-echo "${RUN}" >> "${WORKING_DIR}"/PROCESSED_RUNS
 rm "${WORKING_DIR}"/PROCESSING
 ssh "${SSH_HOSTNAME}" touch "${DESTINATION}"/run_"${RUNID}"/DONE
 
