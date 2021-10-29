@@ -89,6 +89,7 @@ mkdir -p "${WORKING_DIR}"/multiqc/"${RUNID}"
 multiqc \
     --title "${RUNID}" \
     --outdir "${WORKING_DIR}"/multiqc/"${RUNID}" \
+    --force \
     --verbose \
     --module bcl2fastq \
     --module fastq_screen \
