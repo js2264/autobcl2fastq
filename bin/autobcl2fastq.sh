@@ -2,24 +2,44 @@
 
 VERSION=0.2.0
 SCRIPTPATH="$( cd -- "$(dirname $(dirname "$0"))" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
+RUNHASH=""
 
 ## ------------------------------------------------------------------
 ## ------------------- USAGE ----------------------------------------
 ## ------------------------------------------------------------------
 
 function usage {
-    echo "This script should be launched as a cron job, every 10' or so. To do so, run the following commands"
-    echo "Written by J. Serizay"
-    echo " "
-    echo "crontab -l > mycron"
-    echo "echo '*/10 * * * * sbatch \"${SCRIPTPATH}/$0\"' >> mycron"
-    echo "crontab mycron"
-    echo "rm mycron"
+    echo -e "Written by J. Serizay"
+    echo -e ""
+    echo -e "For automated bcl2fastq processing: "
+    echo -e "----------------------------------- "
+    echo -e "This script should be launched as a cron job, every 10' or so. To do so, run the following commands"
+    echo -e ""
+    echo -e "\tcrontab -l > mycron"
+    echo -e "\techo '*/10 * * * * sbatch $0' >> mycron"
+    echo -e "\tcrontab mycron"
+    echo -e ""
+    echo -e ""
+    echo -e "For manual processing mode: "
+    echo -e "--------------------------- "
+    echo -e "This is currently only supported for \`jaseriza\` user on maestro."
+    echo -e ""
+    echo -e "\t$0 --rerun <ChipID>"
+    echo -e ""
+    echo -e ""
 }
 
 for arg in "$@"
 do
     case $arg in
+        #####
+        ##### Manual mode enabled
+        #####
+        --rerun)
+        RUNHASH="${2}"
+        shift 
+        shift 
+        ;;
         #####
         ##### BASIC ARGUMENTS
         #####
@@ -42,7 +62,7 @@ SSH_HOSTNAME=sftpcampus
 GROUP=Rsg #ownership group for the sample sheets
 SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
 DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
-BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `rsg_fast`
+BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/sonic/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/`
 WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
 BIN_DIR=/pasteur/sonic/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
@@ -106,19 +126,36 @@ if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=J
     exit 0
 fi
 
-## - Checking for new runs
-fn_log "Fetching samplesheets from RSG Teams folder"
-fetch_samplesheets "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS
+## - If a run ID is manually set...
+if ( test -n "${RUNHASH}" ) ; then
 
-## - Checking that there is a run to process
-fn_log "Checking for new runs"
-if ( test `wc -l "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS | sed 's, .*,,'` -eq 0 ) ; then
-    echo "No runs to process. Exiting now."
-    exit 0
-fi
+    ## - Check that its samplesheet exists in Teams
+    if ( test `rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' | grep rsgsheet | grep -v xxx | grep "${RUNHASH}" | wc -l` -eq 0 ) ; then
+        echo "Samplesheet for run "${RUNHASH}" not found in Teams. Aborting now."
+        exit 0
+    fi
+    fn_log "Manually processing ${RUNHASH}"
 
-## - Selecting only the first run from the list of samplesheets to process
-RUNHASH=`cat "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS | head -n 1`
+## - If no run ID is manually set...
+else
+
+    ## - Checking for new runs
+    fn_log "Fetching samplesheets from RSG Teams folder"
+    fetch_samplesheets "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS
+
+    ## - Checking that there is a run to process
+    fn_log "Checking for new runs"
+    if ( test `wc -l "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS | sed 's, .*,,'` -eq 0 ) ; then
+        echo "No runs to process. Exiting now."
+        exit 0
+    fi
+
+    ## - Selecting only the first run from the list of samplesheets to process
+    fn_log "New run found: ${RUNHASH}"
+    RUNHASH=`cat "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS | head -n 1`
+fi 
+
+## - Recovering run information for the run to process
 fn_log "Recovering information for run ${RUNHASH}"
 RUN=`ssh "${SSH_HOSTNAME}" ls /pasteur/gaia/projets/p01/nextseq/ | grep -P  "_${RUNHASH}"`
 RUNNB=`echo "${RUN}" | sed 's,.*_NS500150_,,' | sed 's,_.*,,'`
@@ -146,7 +183,7 @@ fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}
 
 ## - Copy sample sheet to `nextseq` project
 scp "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv "${SSH_HOSTNAME}":"${SOURCE}"/"${RUN}"/
-ssh "${SSH_HOSTNAME}" chmod 660 "${SOURCE}"/"${RUN}"//SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
+ssh "${SSH_HOSTNAME}" chmod 660 "${SOURCE}"/"${RUN}"/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
 
 ## - Notify start of new run being processed
 email_start

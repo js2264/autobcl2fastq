@@ -117,6 +117,7 @@ echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
     ${EMAIL}
 
 ## - Cleaning up big files
+fn_log "Cleaning up big files"
 rm -r "${WORKING_DIR}"/runs/"${RUNID}"/
 rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
 
