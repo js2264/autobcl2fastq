@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=0.2.0
+VERSION=0.3.0
 SCRIPTPATH="$( cd -- "$(dirname $(dirname "$0"))" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
 RUNHASH=""
 
