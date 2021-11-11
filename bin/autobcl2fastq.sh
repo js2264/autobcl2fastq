@@ -1,13 +1,14 @@
 #!/bin/bash
 
-VERSION=0.3.0
+VERSION=0.4.0
 SCRIPTPATH="$( cd -- "$(dirname $(dirname "$0"))" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
 RUNHASH=""
 
 ## ------------------------------------------------------------------
-## ------------------- USAGE ----------------------------------------
+## ------------------- HELPER FUNCTIONS -----------------------------
 ## ------------------------------------------------------------------
 
+## - Usage help
 function usage {
     echo -e "Written by J. Serizay"
     echo -e ""
@@ -22,64 +23,53 @@ function usage {
     echo -e ""
     echo -e "For manual processing mode: "
     echo -e "--------------------------- "
-    echo -e "This is currently only supported for \`jaseriza\` user on maestro."
+    echo -e "EXPERIMENTAL: Only use this if you know what you are doing!!!"
+    echo -e "This requires several dependencies, a SSH config file with a sftpcampus access set up, a rclone config file for access to RSG Teams files, ..."
     echo -e ""
-    echo -e "\t$0 --rerun <ChipID>"
+    echo -e "Usage: $0 [ OPTIONAL ARGUMENTS ]"
+    echo -e ""
+    echo -e "   --email <EMAIL>                  | Default: jaseriza@pasteur.fr"
+    echo -e "                                        Email address for notifications."
+    echo -e ""
+    echo -e "   --ssh_hostname <SSH_HOSTNAME>    | Default: sftpcampus"
+    echo -e "                                        Alias for access to sftpcampus set up in your ~/.ssh/config."
+    echo -e ""
+    echo -e "   --nextseq_dir <SOURCE>           | Default: /pasteur/projets/policy01/nextseq"
+    echo -e "                                        Directory where the run raw files are stored (available from sftpcampus)."
+    echo -e ""
+    echo -e "   --reads_dir <DESTINATION>        | Default: /pasteur/projets/policy02/Rsg_reads/nextseq_runs"
+    echo -e "                                        Directory where the reads are going to be copied (available from sftpcampus)."
+    echo -e ""
+    echo -e "   --working_dir <WORKING_DIR>      | Default: /pasteur/appa/scratch/public/jaseriza/autobcl2fastq"
+    echo -e "                                        Directory where demultiplexing takes place (available from maestro)."
+    echo -e "                                        Samplesheets are going to be formatted and backed up here."
+    echo -e ""
+    echo -e "   --sbatch_dir <SBATCH_DIR>        | Default: /pasteur/sonic/hpc/slurm/maestro/slurm/bin"
+    echo -e "                                        Directory for sbatch dependency."
+    echo -e ""
+    echo -e "   --bin_dir <BIN_DIR>              | Default: /pasteur/sonic/homes/jaseriza/bin/miniconda3/bin/"
+    echo -e "                                        Directory for xlsx2csv and Rscript dependencies."
+    echo -e ""
+    echo -e "   --rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
+    echo -e "                                        This file contains credentials to authenticate to RSG Teams repository."
+    echo -e ""
+    echo -e "   --rerun <ChipID>                 | Default: empty."
+    echo -e "                                        Specify one to re-process a specific run."
+    echo -e "                                        The matching run sheet has to exist in RSG Teams."
     echo -e ""
     echo -e ""
 }
 
-for arg in "$@"
-do
-    case $arg in
-        #####
-        ##### Manual mode enabled
-        #####
-        --rerun)
-        RUNHASH="${2}"
-        shift 
-        shift 
-        ;;
-        #####
-        ##### BASIC ARGUMENTS
-        #####
-        -h|--help)
-        usage && exit 0
-        ;;
-        -v|--version)
-        echo -e "autobcl2fastq v${VERSION}" && exit 0
-        ;;
-    esac
-done
-
-## ------------------------------------------------------------------
-## -------- ENV. VARIABLES ------------------------------------------
-## ------------------------------------------------------------------
-
-USER=jaseriza
-EMAIL="${USER}"@pasteur.fr
-SSH_HOSTNAME=sftpcampus
-GROUP=Rsg #ownership group for the sample sheets
-SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
-DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
-BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/sonic/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/`
-WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
-SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
-BIN_DIR=/pasteur/sonic/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
-
-## ------------------------------------------------------------------
-## -------- HELPER FUNCTIONS ----------------------------------------
-## ------------------------------------------------------------------
-
-## - Get list of Koszul runs from RSG Teams folder (shared with the lab). This requires a custom rsgteams access point set up for `rclone`
+## - Compare the list of run sheets from RSG Teams folder (shared with the lab) to the list of samplesheets already processed. 
+# This requires a custom rsgteams access point set up for `rclone`.
 function fetch_samplesheets {
-    grep -v -f <(ls "${WORKING_DIR}"/samplesheets/ | sed 's,.*_,,' | sed 's,.csv,,') <(rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' | grep rsgsheet | grep -v xxx) \
+    grep -v -f <(ls "${WORKING_DIR}"/samplesheets/ | sed 's,.*_,,' | sed 's,.csv,,') <(rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx) \
     | sed 's,rsgsheet_,,' | sed 's,.xlsx,,' > "${1}"
 }
 
 ## - Create an Illumina sample sheet using info from an Rsg sample sheet
 function fix_samplesheet {
-    rclone copy rsgteams:"Experimentalist group/sequencing_runs/rsgsheet_${RUNHASH}.xlsx" "${WORKING_DIR}"/rsgsheets/
+    rclone copy rsgteams:"Experimentalist group/sequencing_runs/rsgsheet_${RUNHASH}.xlsx" "${WORKING_DIR}"/rsgsheets/ --config "${RCLONE_CONFIG}"
     "${BIN_DIR}"/xlsx2csv "${WORKING_DIR}"/rsgsheets/rsgsheet_${RUNHASH}.xlsx | cut -f 1-8 -d, | grep -v ^, | grep -v ^[0-9]*,, > "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv
     cmds=`echo -e "
     x <- read.csv('"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv') ;
@@ -114,6 +104,88 @@ function fn_log {
 }
 
 ## ------------------------------------------------------------------
+## -------- PARSING ARGUMENTS ---------------------------------------
+## ------------------------------------------------------------------
+
+# Default values of arguments
+
+EMAIL=jaseriza@pasteur.fr
+SSH_HOSTNAME=sftpcampus
+SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
+DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
+WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
+SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
+BIN_DIR=/pasteur/sonic/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
+RCLONE_CONFIG=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
+BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/sonic/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/`
+
+for arg in "$@"
+do
+    case $arg in
+        #####
+        ##### Basic arguments
+        #####
+        --email)
+        EMAIL="${2}"
+        shift 
+        shift 
+        ;;
+        --ssh_hostname)
+        SSH_HOSTNAME="${2}"
+        shift 
+        shift 
+        ;;
+        --nextseq_dir)
+        SOURCE="${2}"
+        shift 
+        shift 
+        ;;
+        --reads_dir)
+        DESTINATION="${2}"
+        shift 
+        shift 
+        ;;
+        --working_dir)
+        WORKING_DIR="${2}"
+        shift 
+        shift 
+        ;;
+        --sbatch_dir)
+        SBATCH_DIR="${2}"
+        shift 
+        shift 
+        ;;
+        --bin_dir)
+        BIN_DIR="${2}"
+        shift 
+        shift 
+        ;;
+        --rclone_conf)
+        RCLONE_CONFIG="${2}"
+        shift 
+        shift 
+        ;;
+        #####
+        ##### Rerun mode
+        #####
+        --rerun)
+        RUNHASH="${2}"
+        shift 
+        shift 
+        ;;
+        #####
+        ##### BASIC ARGUMENTS
+        #####
+        -h|--help)
+        usage && exit 0
+        ;;
+        -v|--version)
+        echo -e "autobcl2fastq v${VERSION}" && exit 0
+        ;;
+    esac
+done
+
+## ------------------------------------------------------------------
 ## ------------------- CHECKS ---------------------------------------
 ## ------------------------------------------------------------------
 
@@ -130,7 +202,7 @@ fi
 if ( test -n "${RUNHASH}" ) ; then
 
     ## - Check that its samplesheet exists in Teams
-    if ( test `rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' | grep rsgsheet | grep -v xxx | grep "${RUNHASH}" | wc -l` -eq 0 ) ; then
+    if ( test `rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx | grep "${RUNHASH}" | wc -l` -eq 0 ) ; then
         echo "Samplesheet for run "${RUNHASH}" not found in Teams. Aborting now."
         exit 0
     fi
@@ -146,7 +218,7 @@ else
     ## - Checking that there is a run to process
     fn_log "Checking for new runs"
     if ( test `wc -l "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS | sed 's, .*,,'` -eq 0 ) ; then
-        echo "No runs to process. Exiting now."
+        echo "No new runs to process. Exiting now."
         exit 0
     fi
 
@@ -160,7 +232,7 @@ fn_log "Recovering information for run ${RUNHASH}"
 RUN=`ssh "${SSH_HOSTNAME}" ls /pasteur/gaia/projets/p01/nextseq/ | grep -P  "_${RUNHASH}"`
 RUNNB=`echo "${RUN}" | sed 's,.*_NS500150_,,' | sed 's,_.*,,'`
 RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
-fn_log "Run found: "${RUNNB}"_"${RUNDATE}"_"${RUNHASH}""
+fn_log "Run info found: "${RUNNB}"_"${RUNDATE}"_"${RUNHASH}""
 
 ## - Checking that the run has actually finished
 fn_log "Checking if the run ${RUNHASH} has finished"
