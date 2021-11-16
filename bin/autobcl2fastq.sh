@@ -34,8 +34,8 @@ function usage {
     echo -e "   --ssh_hostname <SSH_HOSTNAME>    | Default: sftpcampus"
     echo -e "                                        Alias for access to sftpcampus set up in your ~/.ssh/config."
     echo -e ""
-    echo -e "   --nextseq_dir <SOURCE>           | Default: /pasteur/projets/policy01/nextseq"
-    echo -e "                                        Directory where the run raw files are stored (available from sftpcampus)."
+    echo -e "   --run_dir <SOURCE>           | Default: /pasteur/projets/policy01/nextseq"
+    echo -e "                                        Parent directory containing the run directory (available from sftpcampus)."
     echo -e ""
     echo -e "   --reads_dir <DESTINATION>        | Default: /pasteur/projets/policy02/Rsg_reads/nextseq_runs"
     echo -e "                                        Directory where the reads are going to be copied (available from sftpcampus)."
@@ -135,7 +135,7 @@ do
         shift 
         shift 
         ;;
-        --nextseq_dir)
+        --run_dir)
         SOURCE="${2}"
         shift 
         shift 
