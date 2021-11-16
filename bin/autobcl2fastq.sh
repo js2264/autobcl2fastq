@@ -197,6 +197,7 @@ if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=J
     echo "Samples currently being processed. Aborting now."
     exit 0
 fi
+echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
 
 ## - If a run ID is manually set...
 if ( test -n "${RUNHASH}" ) ; then
@@ -204,6 +205,7 @@ if ( test -n "${RUNHASH}" ) ; then
     ## - Check that its samplesheet exists in Teams
     if ( test `rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx | grep "${RUNHASH}" | wc -l` -eq 0 ) ; then
         echo "Samplesheet for run "${RUNHASH}" not found in Teams. Aborting now."
+        rm "${WORKING_DIR}"/PROCESSING
         exit 0
     fi
     fn_log "Manually processing ${RUNHASH}"
@@ -219,35 +221,46 @@ else
     fn_log "Checking for new runs"
     if ( test `wc -l "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS | sed 's, .*,,'` -eq 0 ) ; then
         echo "No new runs to process. Exiting now."
+        rm "${WORKING_DIR}"/PROCESSING
         exit 0
     fi
 
     ## - Selecting only the first run from the list of samplesheets to process
-    fn_log "New run found: ${RUNHASH}"
     RUNHASH=`cat "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS | head -n 1`
+    rm "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS
+    fn_log "New run found: ${RUNHASH}"
+
 fi 
 
-## - Recovering run information for the run to process
-fn_log "Recovering information for run ${RUNHASH}"
-RUN=`ssh "${SSH_HOSTNAME}" ls /pasteur/gaia/projets/p01/nextseq/ | grep -P  "_${RUNHASH}"`
-RUNNB=`echo "${RUN}" | sed 's,.*_NS500150_,,' | sed 's,_.*,,'`
-RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
-fn_log "Run info found: "${RUNNB}"_"${RUNDATE}"_"${RUNHASH}""
+## - Check that run exists in source directory
+fn_log "Checking that run exists in ${SOURCE}"
+RUN=`ssh "${SSH_HOSTNAME}" ls "${SOURCE}"/ | grep -P "_${RUNHASH}"`
+if ( test -n "${RUN}" ) ; then
+    RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
+    SEQID=`echo "${RUN}" | sed "s,.*${RUNDATE}_,,g" | sed "s,_.*,,g"`
+    RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
+    fn_log "Run found: Run # ${RUNNB} / Run date ${RUNDATE} / Sequencer ${SEQID} / Chip ID ${RUNHASH}"
+    fn_log "Manually processing ${RUNHASH}"
+else
+    fn_log "Run not found in ${SOURCE}. Aborting now."
+    echo "[CLUSTER INFO] Failed to find run ${RUNHASH} in ${SOURCE}" | mailx \
+        -s "[CLUSTER INFO] Failure" \
+        ${EMAIL}
+    rm "${WORKING_DIR}"/PROCESSING
+    exit 0
+fi
 
 ## - Checking that the run has actually finished
 fn_log "Checking if the run ${RUNHASH} has finished"
-if ( ssh "${SSH_HOSTNAME}" test ! -f /pasteur/gaia/projets/p01/nextseq/"${RUN}"/RTAComplete.txt ) ; then
+if ( ssh "${SSH_HOSTNAME}" test ! -f "${SOURCE}"/"${RUN}"/RTAComplete.txt ) ; then
     echo "Run ${RUN} is not finished. Aborting for now."
+    rm "${WORKING_DIR}"/PROCESSING
     exit 0
 fi
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN ---------------------------
 ## ------------------------------------------------------------------
-
-## - Start processing
-echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
-rm "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS
 
 ## - Download run sample sheet from rsgteams
 fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
