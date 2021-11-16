@@ -125,3 +125,4 @@ rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
 rm "${WORKING_DIR}"/PROCESSING
 
 fn_log "Done!"
+exit 0

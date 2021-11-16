@@ -186,6 +186,21 @@ do
 done
 
 ## ------------------------------------------------------------------
+## ------------------- CLEAN UP BEFORE EXIT -------------------------
+## ------------------------------------------------------------------
+
+function cleanup() {
+    local status=$?
+    if ( test "${status}" -gt 0 ) ; then
+        echo "Caught signal ${status} ... cleaning up & quitting."
+        rm -f ${WORKING_DIR}/PROCESSING
+        rm -f ${WORKING_DIR}/SAMPLESHEETS_TO_PROCESS
+    fi
+    exit 0
+}
+trap cleanup EXIT INT TERM
+
+## ------------------------------------------------------------------
 ## ------------------- CHECKS ---------------------------------------
 ## ------------------------------------------------------------------
 
@@ -193,7 +208,7 @@ fn_log "cmd: ${0}"
 
 ## - Checking that no process is currently on going, immediately abort otherwise
 fn_log "Checking that no process is currently on going"
-if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=Jobname%35,state | grep 'NS500150' | grep PENDING | wc -l` -gt 0 ) ; then
+if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=Jobname%35,state | grep 'NS500150' | grep -v COMPLETED | wc -l` -gt 0 ) ; then
     echo "Samples currently being processed. Aborting now."
     exit 0
 fi
@@ -205,8 +220,7 @@ if ( test -n "${RUNHASH}" ) ; then
     ## - Check that its samplesheet exists in Teams
     if ( test `rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx | grep "${RUNHASH}" | wc -l` -eq 0 ) ; then
         echo "Samplesheet for run "${RUNHASH}" not found in Teams. Aborting now."
-        rm "${WORKING_DIR}"/PROCESSING
-        exit 0
+        exit 1
     fi
     fn_log "Manually processing ${RUNHASH}"
 
@@ -220,9 +234,8 @@ else
     ## - Checking that there is a run to process
     fn_log "Checking for new runs"
     if ( test `wc -l "${WORKING_DIR}"/SAMPLESHEETS_TO_PROCESS | sed 's, .*,,'` -eq 0 ) ; then
-        echo "No new runs to process. Exiting now."
-        rm "${WORKING_DIR}"/PROCESSING
-        exit 0
+        echo "No new runs to process. Aborting now."
+        exit 1
     fi
 
     ## - Selecting only the first run from the list of samplesheets to process
@@ -242,20 +255,18 @@ if ( test -n "${RUN}" ) ; then
     fn_log "Run found: Run # ${RUNNB} / Run date ${RUNDATE} / Sequencer ${SEQID} / Chip ID ${RUNHASH}"
     fn_log "Manually processing ${RUNHASH}"
 else
-    fn_log "Run not found in ${SOURCE}. Aborting now."
+    echo "Run not found in ${SOURCE}. Aborting now."
     echo "[CLUSTER INFO] Failed to find run ${RUNHASH} in ${SOURCE}" | mailx \
         -s "[CLUSTER INFO] Failure" \
         ${EMAIL}
-    rm "${WORKING_DIR}"/PROCESSING
-    exit 0
+    exit 1
 fi
 
 ## - Checking that the run has actually finished
 fn_log "Checking if the run ${RUNHASH} has finished"
 if ( ssh "${SSH_HOSTNAME}" test ! -f "${SOURCE}"/"${RUN}"/RTAComplete.txt ) ; then
     echo "Run ${RUN} is not finished. Aborting for now."
-    rm "${WORKING_DIR}"/PROCESSING
-    exit 0
+    exit 1
 fi
 
 ## ------------------------------------------------------------------
@@ -288,3 +299,5 @@ fn_log "Processing run ${RUN}"
     -e "${WORKING_DIR}"/batch_logs/autobcl2fast_"${RUN}".err \
     --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",WORKING_DIR="${WORKING_DIR}",RUN="${RUN}",EMAIL="${EMAIL}",SOURCE="${SOURCE}",DESTINATION="${DESTINATION}" \
     "${BASE_DIR}"/bin/process_run.sh 
+
+exit 0
