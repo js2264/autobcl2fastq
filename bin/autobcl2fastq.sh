@@ -23,7 +23,7 @@ function usage {
     echo -e ""
     echo -e "For manual processing mode: "
     echo -e "--------------------------- "
-    echo -e "EXPERIMENTAL: Only use this if you know what you are doing!!!"
+    echo -e "EXPERIMENTAL - Only use this if you know what you are doing"
     echo -e "This requires several dependencies, a SSH config file with a sftpcampus access set up, a rclone config file for access to RSG Teams files, ..."
     echo -e ""
     echo -e "Usage: $0 [ OPTIONAL ARGUMENTS ]"
@@ -53,7 +53,7 @@ function usage {
     echo -e "   --rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
     echo -e "                                        This file contains credentials to authenticate to RSG Teams repository."
     echo -e ""
-    echo -e "   --rerun <ChipID>                 | Default: empty."
+    echo -e "   --run <ChipID>                 | Default: empty."
     echo -e "                                        Specify one to re-process a specific run."
     echo -e "                                        The matching run sheet has to exist in RSG Teams."
     echo -e ""
@@ -115,7 +115,7 @@ SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `
 DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
 WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
-BIN_DIR=/pasteur/sonic/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
+BIN_DIR=/pasteur/sonic/homes/jaseriza/bin/miniconda3/bin # For xlsx2csv and Rscript dependencies
 RCLONE_CONFIG=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
 BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/sonic/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/`
 
@@ -166,9 +166,9 @@ do
         shift 
         ;;
         #####
-        ##### Rerun mode
+        ##### Manual mode
         #####
-        --rerun)
+        --run)
         RUNHASH="${2}"
         shift 
         shift 
