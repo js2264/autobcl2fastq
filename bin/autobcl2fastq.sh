@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=0.4.0
+VERSION=0.5.0
 SCRIPTPATH="$( cd -- "$(dirname $(dirname "$0"))" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
 RUNHASH=""
 
@@ -63,13 +63,13 @@ function usage {
 ## - Compare the list of run sheets from RSG Teams folder (shared with the lab) to the list of samplesheets already processed. 
 # This requires a custom rsgteams access point set up for `rclone`.
 function fetch_samplesheets {
-    grep -v -f <(ls "${WORKING_DIR}"/samplesheets/ | sed 's,.*_,,' | sed 's,.csv,,') <(rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx) \
+    grep -v -f <(ls "${WORKING_DIR}"/samplesheets/ | sed 's,.*_,,' | sed 's,.csv,,') <("${BIN_DIR}"/rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx) \
     | sed 's,rsgsheet_,,' | sed 's,.xlsx,,' > "${1}"
 }
 
 ## - Create an Illumina sample sheet using info from an Rsg sample sheet
 function fix_samplesheet {
-    rclone copy rsgteams:"Experimentalist group/sequencing_runs/rsgsheet_${RUNHASH}.xlsx" "${WORKING_DIR}"/rsgsheets/ --config "${RCLONE_CONFIG}"
+    "${BIN_DIR}"/rclone copy rsgteams:"Experimentalist group/sequencing_runs/rsgsheet_${RUNHASH}.xlsx" "${WORKING_DIR}"/rsgsheets/ --config "${RCLONE_CONFIG}"
     "${BIN_DIR}"/xlsx2csv "${WORKING_DIR}"/rsgsheets/rsgsheet_${RUNHASH}.xlsx | cut -f 1-8 -d, | grep -v ^, | grep -v ^[0-9]*,, > "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv
     cmds=`echo -e "
     x <- read.csv('"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv') ;
@@ -111,13 +111,13 @@ function fn_log {
 
 EMAIL=jaseriza@pasteur.fr
 SSH_HOSTNAME=sftpcampus
-SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project
-DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads`
-WORKING_DIR=/pasteur/appa/scratch/public/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
-SBATCH_DIR=/pasteur/sonic/hpc/slurm/maestro/slurm/bin # Directory to sbatch bin
-BIN_DIR=/pasteur/sonic/homes/jaseriza/bin/miniconda3/bin # For xlsx2csv and Rscript dependencies
+SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project [HAS TO BE MOUNTED ON SFTPCAMPUS]
+DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads` [HAS TO BE MOUNTED ON SFTPCAMPUS]
+WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
+SBATCH_DIR=/opt/hpc/slurm/current/bin # Directory to sbatch bin
+BIN_DIR=/pasteur/appa/homes/jaseriza/bin/miniconda3/bin # For xlsx2csv and Rscript dependencies
 RCLONE_CONFIG=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
-BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/sonic/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/`
+BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/`
 
 for arg in "$@"
 do
@@ -218,7 +218,7 @@ echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
 if ( test -n "${RUNHASH}" ) ; then
 
     ## - Check that its samplesheet exists in Teams
-    if ( test `rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx | grep "${RUNHASH}" | wc -l` -eq 0 ) ; then
+    if ( test `"${BIN_DIR}"/rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx | grep "${RUNHASH}" | wc -l` -eq 0 ) ; then
         echo "Samplesheet for run "${RUNHASH}" not found in Teams. Aborting now."
         exit 1
     fi
