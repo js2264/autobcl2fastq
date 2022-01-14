@@ -55,11 +55,11 @@ bcl2fastq \
     --writing-threads 6
 cp "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv "${WORKING_DIR}"/fastq/"${RUNID}"/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
 
-## - Rename all fastqs
+## - Rename all fastqs (with Nextseq nxq extension)
 fn_log "Fixing fastq names"
 for FILE in `find "${WORKING_DIR}"/fastq/"${RUNID}"/ -iname "*.fastq.gz"`
 do
-    newfile=`echo ${FILE} | sed -e 's,_001.fastq.gz,.fq.gz,' | sed -e 's,_S[0-9]_R,_R,' | sed -e 's,_S[0-9][0-9]_R,_R,'`
+    newfile=`echo ${FILE} | sed -e 's,_001.fastq.gz,.fq.gz,' | sed -e 's,_S[0-9]_R,_nxq_R,' | sed -e 's,_S[0-9][0-9]_R,_nxq_R,'`
     mv "${FILE}" "${newfile}"
 done
 
