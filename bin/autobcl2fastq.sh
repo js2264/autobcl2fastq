@@ -208,7 +208,7 @@ fn_log "cmd: ${0}"
 
 ## - Checking that no process is currently on going, immediately abort otherwise
 fn_log "Checking that no process is currently on going"
-if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=Jobname%35,state | grep 'NS500150' | grep -v COMPLETED | wc -l` -gt 0 ) ; then
+if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=Jobname%35,state | grep 'NS500150' | grep -v COMPLETED | grep -v CANCELLED | grep -v FAILED | wc -l` -gt 0 ) ; then
     echo "Samples currently being processed. Aborting now."
     exit 0
 fi
