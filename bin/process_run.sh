@@ -13,7 +13,7 @@ module load bcl2fastq/2.20.0
 module load graalvm/ce-java8-20.0.0
 module load fastqc/0.11.9
 module load bowtie2/2.1.0
-# multiqc, from conda base env.
+module load MultiQC/1.9
 # fastq_screen, from conda base env.
 
 ## ------------------------------------------------------------------
