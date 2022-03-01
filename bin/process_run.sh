@@ -107,7 +107,7 @@ rsync "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html "${SSH_
 
 ## - Enable Read/Write for all files
 ssh "${SSH_HOSTNAME}" touch "${DESTINATION}"/run_"${RUNID}"/DONE
-ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o= "${DESTINATION}"/run_"${RUNID}"
+ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o=rX "${DESTINATION}"/run_"${RUNID}"
 
 ## - Notify end of processing
 echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
