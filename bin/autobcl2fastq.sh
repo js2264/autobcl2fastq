@@ -111,8 +111,8 @@ function fn_log {
 
 EMAIL=jaseriza@pasteur.fr
 SSH_HOSTNAME=sftpcampus
-SOURCE=/pasteur/projets/policy01/nextseq # Where the bcl are hosted, should be `nextseq` project [HAS TO BE MOUNTED ON SFTPCAMPUS]
-DESTINATION=/pasteur/projets/policy02/Rsg_reads/nextseq_runs # Where the fastq are written at the end, should be `Rsg_reads` [HAS TO BE MOUNTED ON SFTPCAMPUS]
+SOURCE=/pasteur/gaia/projets/p01/nextseq/ # Where the bcl are hosted, should be `nextseq` project [HAS TO BE MOUNTED ON SFTPCAMPUS]
+DESTINATION=/pasteur/gaia/projets/p02/Rsg_reads/ # Where the fastq are written at the end, should be `Rsg_reads` [HAS TO BE MOUNTED ON SFTPCAMPUS]
 WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/opt/hpc/slurm/current/bin # Directory to sbatch bin
 BIN_DIR=/pasteur/appa/homes/jaseriza/bin/miniconda3/bin # For xlsx2csv and Rscript dependencies
@@ -253,7 +253,6 @@ if ( test -n "${RUN}" ) ; then
     SEQID=`echo "${RUN}" | sed "s,.*${RUNDATE}_,,g" | sed "s,_.*,,g"`
     RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
     fn_log "Run found: Run # ${RUNNB} / Run date ${RUNDATE} / Sequencer ${SEQID} / Chip ID ${RUNHASH}"
-    fn_log "Manually processing ${RUNHASH}"
 else
     echo "Run not found in ${SOURCE}. Aborting now."
     echo "[CLUSTER INFO] Failed to find run ${RUNHASH} in ${SOURCE}" | mailx \
