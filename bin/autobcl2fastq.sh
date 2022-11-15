@@ -37,17 +37,17 @@ function usage {
     echo -e "   --run_dir <SOURCE>           | Default: /pasteur/gaia/projets/p01/nextseq/"
     echo -e "                                        Parent directory containing the run directory (available from sftpcampus)."
     echo -e ""
-    echo -e "   --reads_dir <DESTINATION>        | Default: /pasteur/gaia/projets/p02/Rsg_reads/"
+    echo -e "   --reads_dir <DESTINATION>        | Default: /pasteur/gaia/projets/p02/Rsg_reads/nextseq_runs/"
     echo -e "                                        Directory where the reads are going to be copied (available from sftpcampus)."
     echo -e ""
-    echo -e "   --working_dir <WORKING_DIR>      | Default: /pasteur/appa/scratch/jaseriza/autobcl2fastq"
+    echo -e "   --working_dir <WORKING_DIR>      | Default: /pasteur/appa/scratch/jaseriza/autobcl2fastq/"
     echo -e "                                        Directory where demultiplexing takes place (available from maestro)."
     echo -e "                                        Samplesheets are going to be formatted and backed up here."
     echo -e ""
-    echo -e "   --sbatch_dir <SBATCH_DIR>        | Default: /opt/hpc/slurm/current/bin"
+    echo -e "   --sbatch_dir <SBATCH_DIR>        | Default: /opt/hpc/slurm/current/bin/"
     echo -e "                                        Directory for sbatch dependency."
     echo -e ""
-    echo -e "   --bin_dir <BIN_DIR>              | Default: /pasteur/appa/homes/jaseriza/bin/miniconda3/bin"
+    echo -e "   --bin_dir <BIN_DIR>              | Default: /pasteur/appa/homes/jaseriza/bin/miniconda3/bin/"
     echo -e "                                        Directory for xlsx2csv and Rscript dependencies."
     echo -e ""
     echo -e "   --rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
@@ -112,12 +112,12 @@ function fn_log {
 EMAIL=jaseriza@pasteur.fr
 SSH_HOSTNAME=sftpcampus
 SOURCE=/pasteur/gaia/projets/p01/nextseq/ # Where the bcl are hosted, should be `nextseq` project [HAS TO BE MOUNTED ON SFTPCAMPUS]
-DESTINATION=/pasteur/gaia/projets/p02/Rsg_reads/ # Where the fastq are written at the end, should be `Rsg_reads` [HAS TO BE MOUNTED ON SFTPCAMPUS]
-WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq # Where the bcl files are processed into fastq, ideally a fast scratch
-SBATCH_DIR=/opt/hpc/slurm/current/bin # Directory to sbatch bin
-BIN_DIR=/pasteur/appa/homes/jaseriza/bin/miniconda3/bin # For xlsx2csv and Rscript dependencies
+DESTINATION=/pasteur/gaia/projets/p02/Rsg_reads/nextseq_runs/ # Where the fastq are written at the end, should be `Rsg_reads/nextseq_runs` [HAS TO BE MOUNTED ON SFTPCAMPUS]
+WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq/ # Where the bcl files are processed into fastq, ideally a fast scratch
+SBATCH_DIR=/opt/hpc/slurm/current/bin/ # Directory to sbatch bin
+BIN_DIR=/pasteur/appa/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
 RCLONE_CONFIG=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
-BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/`
+BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq`
 
 for arg in "$@"
 do
