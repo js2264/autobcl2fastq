@@ -3,6 +3,7 @@
 VERSION=0.6.0
 SCRIPTPATH="$( cd -- "$(dirname $(dirname "$0"))" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
 RUNHASH=""
+# URL="https://dl.pasteur.fr/fop/C9V4VBVF/230516_VH00537_116_AACLHW3M5__Wed_May_17_10h56m50_2023.tar"
 
 ## ------------------------------------------------------------------
 ## ------------------- HELPER FUNCTIONS -----------------------------
@@ -104,7 +105,8 @@ WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq/ # Where the bcl files 
 SBATCH_DIR=/opt/hpc/slurm/current/bin/ # Directory to sbatch bin
 BIN_DIR=/pasteur/appa/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
 RCLONE_CONFIG=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
-BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq`
+BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in:
+#BASE_DIR=/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq
 
 for arg in "$@"
 do
@@ -195,24 +197,32 @@ if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=J
     exit 0
 fi
 
-## - Check that run link is provided
-fn_log "Fetching sequencing run data from Biomics"
+## - Check that Biomics run link has been manually provided/sent by email
 if ( test -n "${URL}" ) ; then
-    RUN=`basename ${URL} | sed 's,__.*,,'`
-    echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
-    curl -L "${URL}" -o "${WORKING_DIR}/runs/`basename ${URL}`"
-    tar -xf "${WORKING_DIR}"/runs/`basename "${URL}"` --directory "${WORKING_DIR}"/runs/
-    rm "${WORKING_DIR}"/runs/`basename "${URL}"`
-    RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
-    SEQID=`echo "${RUN}" | sed "s,.*${RUNDATE}_,,g" | sed "s,_.*,,g"`
-    RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
-    RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
-    SOURCE="${WORKING_DIR}/runs/"
+    echo "Continuing with run URL manually provided: ${URL}"
 else
-    echo "Run link not provided. Please provide it with `--url <URL>`."
-    exit 1
+    fn_log "Checking mailbox for Biomics e-mail"
+    URL=`"${BASE_DIR}"/bin/check_emails.py`
+    if ( test -n "${URL}" ) ; then
+        echo "Run link found: ${URL}"
+    else
+        echo "No run link found. Please provide it with \`--url <URL>\`."
+        exit 1
+    fi
 fi
 
+## - Download run raw data
+fn_log "Downloading raw data from Biomics"
+RUN=`basename ${URL} | sed 's,__.*,,'`
+echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
+curl -L "${URL}" -o "${WORKING_DIR}/runs/`basename ${URL}`"
+tar -xf "${WORKING_DIR}"/runs/`basename "${URL}"` --directory "${WORKING_DIR}"/runs/
+rm "${WORKING_DIR}"/runs/`basename "${URL}"`
+RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
+SEQID=`echo "${RUN}" | sed "s,.*${RUNDATE}_,,g" | sed "s,_.*,,g"`
+RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
+RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
+SOURCE="${WORKING_DIR}/runs/"
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN ---------------------------

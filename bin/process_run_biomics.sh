@@ -21,8 +21,9 @@ module load MultiQC/1.9
 ## ------------------------------------------------------------------
 
 RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
-RUNNB=`echo "${RUN}" | sed 's,.*_\([0-9][0-9][0-9][0-9]\)_.*,\1,g'`
-RUNHASH=`echo "${RUN}" | sed 's,.*_,,g'`
+SEQID=`echo "${RUN}" | sed "s,.*${RUNDATE}_,,g" | sed "s,_.*,,g"`
+RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
+RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
 RUNID="${RUNNB}_${RUNDATE}_${RUNHASH}"
 
 ## ------------------------------------------------------------------
