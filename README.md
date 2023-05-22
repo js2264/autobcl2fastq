@@ -35,6 +35,15 @@ Biomics:
 SSH key-based, passwordless access must be set up in `~/.ssh/config` to acces
 the server where demultiplexed reads will be copied. 
 
+### Secrets
+
+Several secrets have to be defined for automated fetching from Biomics: 
+
+- `username`: Pasteur email address
+- `password`: Pasteur email password
+- `sender`: Pasteur email address of Biomics team sender
+- `imap_server`: Pasateur imap server
+
 ### rclone access
 
 A specific rclone config is required to fetch RSG sequencing run sample sheets.
