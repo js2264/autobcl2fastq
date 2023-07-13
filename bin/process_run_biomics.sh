@@ -10,7 +10,7 @@
 
 module purge
 module load bcl2fastq/2.20.0
-module load graalvm/ce-java8-20.0.0
+module load graalvm/ce-java19-22.3.1
 module load fastqc/0.11.9
 module load bowtie2/2.1.0
 module load MultiQC/1.9
