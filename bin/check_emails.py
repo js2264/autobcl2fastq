@@ -6,6 +6,7 @@ import email
 import email.message
 from email.message import Message
 from itertools import compress
+from cryptography.fernet import Fernet
 
 def get_secrets(secrets_file):
     full_file_path = Path(secrets_file).parent.joinpath(secrets_file)
@@ -13,9 +14,11 @@ def get_secrets(secrets_file):
         settings_data = yaml.load(settings, Loader=yaml.Loader)
     return settings_data
 
-def get_mailbox(secrets):
+def get_mailbox(secrets, key):
     username = secrets['username']
-    password = secrets['password']
+    f = Fernet(key)
+    token = bytes(secrets['token'], 'utf-8')
+    password = f.decrypt(token).decode(encoding = 'utf-8')
     imap_server = secrets['imap_server']
     mail = imaplib.IMAP4_SSL(imap_server)
     mail.login(username, password)
@@ -43,7 +46,8 @@ def find_link(mail):
 
 def main():
     secrets = get_secrets("/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.secrets.yaml")
-    mailbox = get_mailbox(secrets)
+    key = get_secrets("/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.fernet.key")
+    mailbox = get_mailbox(secrets, key)
     try:
         mail = read_mail(mailbox, secrets['sender'])
         link = find_link(mail)
