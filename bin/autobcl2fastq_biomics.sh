@@ -63,7 +63,7 @@ function fix_samplesheet {
     cmds=`echo -e "
     x <- read.csv('"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv') ;
     y <- read.csv('${BASE_DIR}/indices.txt', header = TRUE, sep = '\\\\\t') ; 
-    x <- merge(x, y, by = 'barcode_well') ;
+    x <- merge(x, y, by = 'barcode_well', all.x = TRUE) ;
     z <- data.frame(Sample_ID = x\\$sample_id, Sample_Name = x\\$sample_id, Sample_Plate = '', Sample_Well = x\\$barcode_well, I7_Index_ID = '', index = x\\$i7_sequence, I5_Index_ID = '', index2 = x\\$i5_sequence, Sample_Project = gsub('[0-9].*', '', x\\$sample_id)) ;
     write.table(z, '"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv', quote = FALSE, row.names = FALSE, col.names = TRUE, sep = ',')
     "`
@@ -74,6 +74,40 @@ function fix_samplesheet {
     Experiment Name,NSQ"${RUNNB}"
 
     [Data]" | sed 's/^[ \t]*//' > "${1}"
+    
+    ## -------- Check that all users detected in the samplesheet are already registered in `users.conf`. 
+    USERS_CONFIG="${BASE_DIR}"/users.conf
+    LISTED_USERS_IDS=`sed '1d' "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv | sed 's/.*,//' | sort | uniq`
+    REGISTERED_USERS_IDS=`grep '\[' ${USERS_CONFIG} | sed 's,[][],,g'`
+    unset UNREGISTERED_IDS
+    for USER in $LISTED_USERS_IDS
+    do
+        if ( test `grep $USER <(grep '\[' ${USERS_CONFIG} | sed 's,[][],,g') | wc -l` -eq 0 ) ; then
+            UNREGISTERED_IDS="${UNREGISTERED_IDS} ${USER}"
+        fi
+    done
+    if ( test -n "${UNREGISTERED_IDS}" ) ; then
+        echo -e "The following user(s) are not registered yet:\n\n${UNREGISTERED_IDS}\n\nPlease fill in ${USERS_CONFIG} before re-attempting to demultiplex."
+        exit 1
+    fi
+
+    ## -------- Check that all indices provided are listed in `indices.txt`
+    INDICES="${BASE_DIR}"/indices.txt
+    LISTED_INDICES=`sed '1d' "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv | sed 's/^[^,]*,[^,]*,,//' | sed 's/,.*//'`
+    REGISTERED_INDICES=`sed 's,\s.*,,' ${INDICES}`
+    unset UNREGISTERED_INDICES
+    for INDEX in $LISTED_INDICES
+    do
+        if ( test `grep $INDEX ${INDICES} | wc -l` -eq 0 ) ; then
+            UNREGISTERED_INDICES="${UNREGISTERED_INDICES} ${INDEX}"
+        fi
+    done
+    if ( test -n "${UNREGISTERED_INDICES}" ) ; then
+        echo -e "The following index(es) are not registered yet:\n\n${UNREGISTERED_INDICES}\n\nPlease fill in ${INDICES} before re-attempting to demultiplex."
+        exit 1
+    fi
+
+    ## -------- Copy the fixed samplesheet to the output path
     cat "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv >> "${1}"
     rm -rf "${WORKING_DIR}"/rsgsheets/
 }
@@ -90,6 +124,17 @@ function email_start {
 ## - Logging function
 function fn_log {
     echo -e "`date "+%y-%m-%d %H:%M:%S"` [INFO] $@"
+}
+
+## - Clean up function
+function cleanup() {
+    local status=$?
+    if ( test "${status}" -gt 0 ) ; then
+        echo "Caught signal ${status} ... cleaning up & quitting."
+        rm -f ${WORKING_DIR}/PROCESSING
+        rm -f ${WORKING_DIR}/SAMPLESHEETS_TO_PROCESS
+    fi
+    exit 0
 }
 
 ## ------------------------------------------------------------------
@@ -173,15 +218,6 @@ done
 ## ------------------- CLEAN UP BEFORE EXIT -------------------------
 ## ------------------------------------------------------------------
 
-function cleanup() {
-    local status=$?
-    if ( test "${status}" -gt 0 ) ; then
-        echo "Caught signal ${status} ... cleaning up & quitting."
-        rm -f ${WORKING_DIR}/PROCESSING
-        rm -f ${WORKING_DIR}/SAMPLESHEETS_TO_PROCESS
-    fi
-    exit 0
-}
 trap cleanup EXIT INT TERM
 
 ## ------------------------------------------------------------------
