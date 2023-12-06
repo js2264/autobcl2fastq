@@ -87,7 +87,9 @@ function fix_samplesheet {
         fi
     done
     if ( test -n "${UNREGISTERED_IDS}" ) ; then
-        echo -e "The following user(s) are not registered yet:\n\n${UNREGISTERED_IDS}\n\nPlease fill in ${USERS_CONFIG} before re-attempting to demultiplex."
+        msg="The following user(s) are not registered yet:\n\n${UNREGISTERED_IDS}\n\nPlease fill in ${USERS_CONFIG} before re-attempting to demultiplex."
+        email_error "${msg}"
+        echo -e "${msg}"
         exit 1
     fi
 
@@ -103,7 +105,9 @@ function fix_samplesheet {
         fi
     done
     if ( test -n "${UNREGISTERED_INDICES}" ) ; then
-        echo -e "The following index(es) are not registered yet:\n\n${UNREGISTERED_INDICES}\n\nPlease fill in ${INDICES} before re-attempting to demultiplex."
+        msg="The following index(es) are not registered yet:\n\n${UNREGISTERED_INDICES}\n\nPlease fill in ${INDICES} before re-attempting to demultiplex."
+        email_error "${msg}"
+        echo -e "${msg}"
         exit 1
     fi
 
@@ -118,6 +122,11 @@ function email_start {
     echo -e "Run ${RUN} started @ `date`\npath: "${SOURCE}"/\nsamples: ${SAMPLES}" | mailx \
         -s "[CLUSTER INFO] Submitted run ${RUN} to autobcl2fastq" \
         -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
+        ${EMAIL} 
+}
+function email_error {
+    echo -e "${1}" | mailx \
+        -s "[CLUSTER INFO] ERROR run ${RUN} to autobcl2fastq" \
         ${EMAIL} 
 }
 
@@ -242,8 +251,8 @@ else
     if ( test -n "${URL}" ) ; then
         echo "Run link found: ${URL}"
     else
-        echo "No run link found. Please provide it with \`--url <URL>\`."
-        exit 1
+        echo "No run link found. You can manually provide one with \`--url <URL>\`."
+        exit 0
     fi
 fi
 
@@ -257,7 +266,6 @@ SOURCE="${WORKING_DIR}/runs/"
 echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
 fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
 fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
-cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
 
 ## - Download run raw data
 fn_log "Downloading raw data from Biomics"
