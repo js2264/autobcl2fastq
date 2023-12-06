@@ -211,26 +211,27 @@ else
     fi
 fi
 
-## - Download run raw data
-fn_log "Downloading raw data from Biomics"
+## - Download run sample sheet from rsgteams
 RUN=`basename ${URL} | sed 's,__.*,,'`
-echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
-curl -L "${URL}" -o "${WORKING_DIR}/runs/`basename ${URL}`"
-tar -xf "${WORKING_DIR}"/runs/`basename "${URL}"` --directory "${WORKING_DIR}"/runs/
-rm "${WORKING_DIR}"/runs/`basename "${URL}"`
 RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
 SEQID=`echo "${RUN}" | sed "s,.*${RUNDATE}_,,g" | sed "s,_.*,,g"`
 RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
 RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
 SOURCE="${WORKING_DIR}/runs/"
+echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
+fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
+fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
+cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
+
+## - Download run raw data
+fn_log "Downloading raw data from Biomics"
+curl -L "${URL}" -o "${WORKING_DIR}/runs/`basename ${URL}`"
+tar -xf "${WORKING_DIR}"/runs/`basename "${URL}"` --directory "${WORKING_DIR}"/runs/
+rm "${WORKING_DIR}"/runs/`basename "${URL}"`
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN ---------------------------
 ## ------------------------------------------------------------------
-
-## - Download run sample sheet from rsgteams
-fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
-fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
 
 ## - Notify start of new run being processed
 email_start
