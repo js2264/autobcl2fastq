@@ -160,6 +160,8 @@ SBATCH_DIR=/opt/hpc/slurm/current/bin/ # Directory to sbatch bin
 BIN_DIR=/pasteur/appa/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
 RCLONE_CONFIG=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
 BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in:
+SLURM_PARTITION="common,dedicated"
+SLURM_QOS="fast"
 #BASE_DIR=/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq
 
 for arg in "$@"
@@ -289,6 +291,8 @@ email_start
 
 fn_log "Processing run ${RUN}"
 "${SBATCH_DIR}"/sbatch \
+    --partition "${SLURM_PARTITION}" \
+    --qos "${SLURM_QOS}" \
     -J "${RUN}" \
     -o "${WORKING_DIR}"/batch_logs/autobcl2fast_"${RUN}".out \
     -e "${WORKING_DIR}"/batch_logs/autobcl2fast_"${RUN}".err \

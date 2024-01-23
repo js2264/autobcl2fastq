@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#SBATCH --partition depgg
-#SBATCH --qos normal
 #SBATCH --cpus-per-task 20
 #SBATCH --mem 48G
 
