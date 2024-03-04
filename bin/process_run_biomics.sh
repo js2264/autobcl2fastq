@@ -13,7 +13,7 @@ module load graalvm/ce-java19-22.3.1
 module load fastqc/0.11.9
 module load bowtie2/2.1.0
 module load MultiQC/1.9
-# fastq_screen, from conda base env.
+module load fastq_screen/v0.14.0
 
 ## ------------------------------------------------------------------
 ## -------- ENV. VARIABLES ------------------------------------------
@@ -129,8 +129,8 @@ echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
 
 ## - Cleaning up big files
 fn_log "Cleaning up big files"
-rm -r "${WORKING_DIR}"/runs/"${RUN}"/
-rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
+# rm -r "${WORKING_DIR}"/runs/"${RUN}"/
+# rm -r "${WORKING_DIR}"/fastq/"${RUNID}"/
 
 ## - Wrap up run processing
 rm "${WORKING_DIR}"/PROCESSING

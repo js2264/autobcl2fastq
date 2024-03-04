@@ -297,6 +297,6 @@ fn_log "Processing run ${RUN}"
     -o "${WORKING_DIR}"/batch_logs/autobcl2fast_"${RUN}".out \
     -e "${WORKING_DIR}"/batch_logs/autobcl2fast_"${RUN}".err \
     --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",WORKING_DIR="${WORKING_DIR}",RUN="${RUN}",EMAIL="${EMAIL}",DESTINATION="${DESTINATION}" \
-    "${BASE_DIR}"/bin/process_run_biomics.sh 
+    "${BASE_DIR}/bin/process_run_biomics.sh"
 
 exit 0
