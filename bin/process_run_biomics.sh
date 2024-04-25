@@ -83,7 +83,7 @@ fastqc \
     --noextract \
     --threads 12 \
     --adapters "${BASE_DIR}"/adapters.txt \
-    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*fq.gz 1>&2
+    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*_R1fq.gz 1>&2
 
 ## - Run fastq_screen for all the samples
 fn_log "Running fastq_screen"
@@ -92,7 +92,8 @@ fastq_screen \
     --outdir "${WORKING_DIR}"/fastqscreen/"${RUNID}" \
     --conf "${BASE_DIR}"/fastq_screen.conf \
     --threads 12 \
-    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*fq.gz
+    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*_R1.fq.gz \
+    "${WORKING_DIR}"/fastq/"${RUNID}"/*_R1.fq.gz
 
 ## - Run MultiQC to aggregate results (bcl2fastq, fastqc, fastq_screen)
 fn_log "Running multiqc"
