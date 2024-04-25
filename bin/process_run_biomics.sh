@@ -126,6 +126,7 @@ echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
     -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
     -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
     ${EMAIL}
+sleep 5
 
 ## - Cleaning up big files
 fn_log "Cleaning up big files"
