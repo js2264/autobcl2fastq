@@ -83,7 +83,7 @@ fastqc \
     --noextract \
     --threads 12 \
     --adapters "${BASE_DIR}"/adapters.txt \
-    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*_R1fq.gz 1>&2
+    "${WORKING_DIR}"/fastq/"${RUNID}"/*/*_R1.fq.gz 1>&2
 
 ## - Run fastq_screen for all the samples
 fn_log "Running fastq_screen"
