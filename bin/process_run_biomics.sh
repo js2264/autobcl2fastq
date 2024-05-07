@@ -23,7 +23,7 @@ RUNDATE=`echo "${RUN}" | sed 's,_.*,,g'`
 SEQID=`echo "${RUN}" | sed "s,.*${RUNDATE}_,,g" | sed "s,_.*,,g"`
 RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
 RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
-RUNID="${RUNNB}_${RUNDATE}_${RUNHASH}"
+RUNID=${RUNDATE}_"${RUNNB}_${RUNHASH}"
 
 ## ------------------------------------------------------------------
 ## -------- HELPER FUNCTIONS ----------------------------------------
@@ -64,7 +64,7 @@ bcl2fastq \
     --loading-threads 6 \
     --processing-threads 6 \
     --writing-threads 6
-cp "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv "${WORKING_DIR}"/fastq/"${RUNID}"/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
+cp "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv "${WORKING_DIR}"/fastq/"${RUNID}"/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
 
 ## - Rename all fastqs (with Nextseq nxq extension)
 fn_log "Fixing fastq names"
@@ -124,7 +124,7 @@ ssh "${SSH_HOSTNAME}" chmod -R u=rwX,g=rwX,o=rX "${DESTINATION}"/run_"${RUNID}"
 ## - Notify end of processing
 echo "Files stored in ${DESTINATION}"/run_"${RUNID}" | mailx \
     -s "[CLUSTER INFO] Finished processing run ${RUNID} with autobcl2fastq" \
-    -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
+    -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv \
     -a "${WORKING_DIR}"/multiqc/"${RUNID}"/"${RUNID}"_multiqc_report.html \
     ${EMAIL}
 sleep 5

@@ -118,10 +118,10 @@ function fix_samplesheet {
 
 ## - Email notification
 function email_start {
-    SAMPLES=`cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
+    SAMPLES=`cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
     echo -e "Run ${RUN} started @ `date`\npath: "${SOURCE}"/\nsamples: ${SAMPLES}" | mailx \
         -s "[CLUSTER INFO] Submitted run ${RUN} to autobcl2fastq" \
-        -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
+        -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv \
         ${EMAIL} 
 }
 function email_error {
@@ -267,7 +267,7 @@ RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
 SOURCE="${WORKING_DIR}/runs/"
 echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
 fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
-fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv
+fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
 
 ## - Download run raw data
 fn_log "Downloading raw data from Biomics"
