@@ -60,7 +60,7 @@ bcl2fastq \
     --no-lane-splitting \
     -R "${WORKING_DIR}"/runs/"${RUN}"/ \
     -o "${WORKING_DIR}"/fastq/"${RUNID}"/ \
-    --sample-sheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNNB}"_"${RUNDATE}"_"${RUNHASH}".csv \
+    --sample-sheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv \
     --loading-threads 6 \
     --processing-threads 6 \
     --writing-threads 6
