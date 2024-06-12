@@ -18,6 +18,7 @@ def get_mailbox(secrets, key):
     username = secrets['username']
     f = Fernet(key)
     token = bytes(secrets['token'], 'utf-8')
+    #f.encrypt(b"<pasteur_webmail_password>") --> store in secrets[["token"]]
     password = f.decrypt(token).decode(encoding = 'utf-8')
     imap_server = secrets['imap_server']
     mail = imaplib.IMAP4_SSL(imap_server)
