@@ -92,6 +92,7 @@ fastq_screen \
     --outdir "${WORKING_DIR}"/fastqscreen/"${RUNID}" \
     --conf "${BASE_DIR}"/fastq_screen.conf \
     --threads 12 \
+    --force \
     "${WORKING_DIR}"/fastq/"${RUNID}"/*/*_R1.fq.gz \
     "${WORKING_DIR}"/fastq/"${RUNID}"/*_R1.fq.gz
 
