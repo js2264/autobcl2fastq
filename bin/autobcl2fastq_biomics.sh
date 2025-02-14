@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=0.6.1
+VERSION=0.6.2
 SCRIPTPATH="$( cd -- "$(dirname $(dirname "$0"))" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
 RUNHASH=""
 # URL="https://dl.pasteur.fr/fop/C9V4VBVF/230516_VH00537_116_AACLHW3M5__Wed_May_17_10h56m50_2023.tar"
