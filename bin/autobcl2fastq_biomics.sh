@@ -46,6 +46,8 @@ function usage {
     echo -e ""
     echo -e "   --url <URL>                      | The link provided by Biomics to download sequencing data."
     echo -e ""
+    echo -e "   --samplesheet <PATH>             | Provide a local path to the sample sheet."
+    echo -e ""
     echo -e ""
 }
 
@@ -62,6 +64,66 @@ function fix_samplesheet {
     "${BIN_DIR}"/xlsx2csv "${WORKING_DIR}"/rsgsheets/rsgsheet_${RUNHASH}.xlsx | cut -f 1-8 -d, | grep -v ^, | grep -v ^[0-9]*,, > "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv
     cmds=`echo -e "
     x <- read.csv('"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv') ;
+    y <- read.csv('${BASE_DIR}/indices.txt', header = TRUE, sep = '\\\\\t') ; 
+    x <- merge(x, y, by = 'barcode_well', all.x = TRUE) ;
+    z <- data.frame(Sample_ID = x\\$sample_id, Sample_Name = x\\$sample_id, Sample_Plate = '', Sample_Well = x\\$barcode_well, I7_Index_ID = '', index = x\\$i7_sequence, I5_Index_ID = '', index2 = x\\$i5_sequence, Sample_Project = gsub('[0-9].*', '', x\\$sample_id)) ;
+    write.table(z, '"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv', quote = FALSE, row.names = FALSE, col.names = TRUE, sep = ',')
+    "`
+    "${BIN_DIR}"/Rscript <(echo "${cmds}")
+    echo "[Header]
+    Date,"${RUNDATE}"
+    Workflow,GenerateFASTQ
+    Experiment Name,NSQ"${RUNNB}"
+
+    [Data]" | sed 's/^[ \t]*//' > "${1}"
+    
+    ## -------- Check that all users detected in the samplesheet are already registered in `users.conf`. 
+    USERS_CONFIG="${BASE_DIR}"/users.conf
+    LISTED_USERS_IDS=`sed '1d' "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv | sed 's/.*,//' | sort | uniq`
+    REGISTERED_USERS_IDS=`grep '\[' ${USERS_CONFIG} | sed 's,[][],,g'`
+    unset UNREGISTERED_IDS
+    for USER in $LISTED_USERS_IDS
+    do
+        if ( test `grep $USER <(grep '\[' ${USERS_CONFIG} | sed 's,[][],,g') | wc -l` -eq 0 ) ; then
+            UNREGISTERED_IDS="${UNREGISTERED_IDS} ${USER}"
+        fi
+    done
+    if ( test -n "${UNREGISTERED_IDS}" ) ; then
+        msg="The following user(s) are not registered yet:\n\n${UNREGISTERED_IDS}\n\nPlease fill in ${USERS_CONFIG} before re-attempting to demultiplex."
+        email_error "${msg}"
+        echo -e "${msg}"
+        exit 1
+    fi
+
+    ## -------- Check that all indices provided are listed in `indices.txt`
+    INDICES="${BASE_DIR}"/indices.txt
+    LISTED_INDICES=`sed '1d' "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv | sed 's/^[^,]*,[^,]*,,//' | sed 's/,.*//'`
+    REGISTERED_INDICES=`sed 's,\s.*,,' ${INDICES}`
+    unset UNREGISTERED_INDICES
+    for INDEX in $LISTED_INDICES
+    do
+        if ( test `grep $INDEX ${INDICES} | wc -l` -eq 0 ) ; then
+            UNREGISTERED_INDICES="${UNREGISTERED_INDICES} ${INDEX}"
+        fi
+    done
+    if ( test -n "${UNREGISTERED_INDICES}" ) ; then
+        msg="The following index(es) are not registered yet:\n\n${UNREGISTERED_INDICES}\n\nPlease fill in ${INDICES} before re-attempting to demultiplex."
+        email_error "${msg}"
+        echo -e "${msg}"
+        exit 1
+    fi
+
+    ## -------- Copy the fixed samplesheet to the output path
+    cat "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv >> "${1}"
+    rm -rf "${WORKING_DIR}"/rsgsheets/
+}
+
+## - Create an Illumina sample sheet using info from an LOCAL Rsg sample sheet
+function fix_local_samplesheet {
+    mkdir "${WORKING_DIR}"/rsgsheets/
+    cmds=`echo -e "
+    x <- read.table('"${samplesheet}"') ;
+    colnames(x) <- c('sample_id', 'barcode_well') ;
     y <- read.csv('${BASE_DIR}/indices.txt', header = TRUE, sep = '\\\\\t') ; 
     x <- merge(x, y, by = 'barcode_well', all.x = TRUE) ;
     z <- data.frame(Sample_ID = x\\$sample_id, Sample_Name = x\\$sample_id, Sample_Plate = '', Sample_Well = x\\$barcode_well, I7_Index_ID = '', index = x\\$i7_sequence, I5_Index_ID = '', index2 = x\\$i5_sequence, Sample_Project = gsub('[0-9].*', '', x\\$sample_id)) ;
@@ -159,10 +221,10 @@ WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq/ # Where the bcl files 
 SBATCH_DIR=/opt/hpc/slurm/current/bin/ # Directory to sbatch bin
 BIN_DIR=/pasteur/appa/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
 RCLONE_CONFIG=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
-BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in:
 SLURM_PARTITION="common,dedicated"
 SLURM_QOS="fast"
-#BASE_DIR=/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq
+BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in:
+# BASE_DIR=/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq
 
 for arg in "$@"
 do
@@ -210,6 +272,11 @@ do
         #####
         --url)
         URL="${2}"
+        shift 
+        shift 
+        ;;
+        --samplesheet)
+        samplesheet="${2}"
         shift 
         shift 
         ;;
@@ -266,8 +333,16 @@ RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
 RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
 SOURCE="${WORKING_DIR}/runs/"
 echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
-fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
-fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
+if ( test -n "${samplesheet}" ) ; then
+    fn_log "Using the local samplesheet: ${samplesheet}"
+    fix_local_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
+else
+    fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
+    fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
+fi
+echo -e ""
+cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
+echo -e ""
 
 ## - Download run raw data
 fn_log "Downloading raw data from Biomics"
