@@ -47,10 +47,10 @@ function usage {
     echo -e "   --sbatch_dir <SBATCH_DIR>        | Default: /opt/hpc/slurm/current/bin/"
     echo -e "                                        Directory for sbatch dependency."
     echo -e ""
-    echo -e "   --bin_dir <BIN_DIR>              | Default: /pasteur/appa/homes/jaseriza/bin/miniconda3/bin/"
+    echo -e "   --bin_dir <BIN_DIR>              | Default: /pasteur/appa/homes/jaseriza/miniforge/bin/"
     echo -e "                                        Directory for xlsx2csv and Rscript dependencies."
     echo -e ""
-    echo -e "   --rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
+    echo -e "   --rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
     echo -e "                                        This file contains credentials to authenticate to RSG Teams repository."
     echo -e ""
     echo -e "   --run <ChipID>                 | Default: empty."
@@ -115,9 +115,9 @@ SOURCE=/pasteur/gaia/projets/p01/nextseq/ # Where the bcl are hosted, should be 
 DESTINATION=/pasteur/gaia/projets/p02/Rsg_reads/nextseq_runs/ # Where the fastq are written at the end, should be `Rsg_reads/nextseq_runs` [HAS TO BE MOUNTED ON SFTPCAMPUS]
 WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq/ # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/opt/hpc/slurm/current/bin/ # Directory to sbatch bin
-BIN_DIR=/pasteur/appa/homes/jaseriza/bin/miniconda3/bin/ # For xlsx2csv and Rscript dependencies
-RCLONE_CONFIG=/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
-BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq`
+BIN_DIR=/pasteur/appa/homes/jaseriza/miniforge/bin/ # For xlsx2csv and Rscript dependencies
+RCLONE_CONFIG=/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
+BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in `/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq`
 
 for arg in "$@"
 do

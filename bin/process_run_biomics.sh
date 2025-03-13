@@ -80,6 +80,7 @@ fn_log "Running FastQC"
 mkdir -p "${WORKING_DIR}"/fastqc/"${RUNID}"
 fastqc \
     --outdir "${WORKING_DIR}"/fastqc/"${RUNID}" \
+    --nogroup \
     --noextract \
     --threads 12 \
     --adapters "${BASE_DIR}"/adapters.txt \

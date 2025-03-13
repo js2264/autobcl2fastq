@@ -46,8 +46,8 @@ def find_link(mail):
     return(url)
 
 def main():
-    secrets = get_secrets("/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.secrets.yaml")
-    key = get_secrets("/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.fernet.key")
+    secrets = get_secrets("/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/.secrets.yaml")
+    key = get_secrets("/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/.fernet.key")
     mailbox = get_mailbox(secrets, key)
     try:
         mail = read_mail(mailbox, secrets['sender'])

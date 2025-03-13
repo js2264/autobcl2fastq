@@ -4,7 +4,7 @@ To demultiplex a run for which a link to the data archive has been sent by
 Biomics: 
 
 ```sh
-/pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/bin/autobcl2fastq_biomics.sh \
+/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/bin/autobcl2fastq_biomics.sh \
     --url <BIOMICS_URL>
 ```
 
@@ -22,9 +22,9 @@ Biomics:
                                      Samplesheets are going to be formatted and backed up here."
 --sbatch_dir <SBATCH_DIR>        | Default: /opt/hpc/slurm/current/bin/"
                                      Directory for sbatch dependency."
---bin_dir <BIN_DIR>              | Default: /pasteur/appa/homes/jaseriza/bin/miniconda3/bin/"
+--bin_dir <BIN_DIR>              | Default: /pasteur/appa/homes/jaseriza/miniforge/bin/"
                                      Directory for xlsx2csv and Rscript dependencies."
---rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/zeus/projets/p02/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
+--rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
                                      This file contains credentials to authenticate to RSG Teams repository."
 ```
 
