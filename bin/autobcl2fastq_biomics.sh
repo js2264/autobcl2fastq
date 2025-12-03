@@ -15,10 +15,7 @@ function usage {
     echo -e ""
     echo -e "For manual demux of Biomics data: "
     echo -e "--------------------------- "
-    echo -e "This requires several dependencies, including: "
-    echo -e "   - a SSH config file with a sftpcampus access set up"
-    echo -e "   - a rclone config file for access to RSG Teams files (see `--rclone_conf`)"
-    echo -e "   - Few extra binaries (see `--bin_dir`)"
+    echo -e "This requires a SSH config file with a sftpcampus access set up"
     echo -e ""
     echo -e "Usage: $0 [ OPTIONAL ARGUMENTS ] --url <URL>"
     echo -e ""
@@ -38,12 +35,6 @@ function usage {
     echo -e "   --sbatch_dir <SBATCH_DIR>        | Default: /opt/hpc/slurm/current/bin/"
     echo -e "                                        Directory for sbatch dependency."
     echo -e ""
-    echo -e "   --bin_dir <BIN_DIR>              | Default: /pasteur/appa/homes/jaseriza/micromamba/bin/"
-    echo -e "                                        Directory for xlsx2csv and Rscript dependencies."
-    echo -e ""
-    echo -e "   --rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
-    echo -e "                                        This file contains credentials to authenticate to RSG Teams repository."
-    echo -e ""
     echo -e "   --url <URL>                      | The link provided by Biomics to download sequencing data."
     echo -e ""
     echo -e ""
@@ -52,37 +43,55 @@ function usage {
 ## - Create an Illumina sample sheet using info from an LOCAL Rsg sample sheet
 function fix_local_samplesheet {
     mkdir "${WORKING_DIR}"/rsgsheets/
-    cmds=`echo -e "
-    x <- read.table('"${samplesheet}"') ;
-    colnames(x) <- c('sample_id', 'barcode_well') ;
-    y <- read.csv('${BASE_DIR}/indices.txt', header = TRUE, sep = '\\\\\t') ; 
-    x <- merge(x, y, by = 'barcode_well', all.x = TRUE) ;
-    z <- data.frame(Sample_ID = x\\$sample_id, Sample_Name = x\\$sample_id, Sample_Plate = '', Sample_Well = x\\$barcode_well, I7_Index_ID = '', index = x\\$i7_sequence, I5_Index_ID = '', index2 = x\\$i5_sequence, Sample_Project = gsub('[0-9].*', '', x\\$sample_id)) ;
-    write.table(z, '"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv', quote = FALSE, row.names = FALSE, col.names = TRUE, sep = ',')
-    "`
-    "${BIN_DIR}"/Rscript <(echo "${cmds}")
-    echo "[Header]
-    Date,"${RUNDATE}"
-    Workflow,GenerateFASTQ
-    Experiment Name,NSQ"${RUNNB}"
+    local OUTPUT_FILE="${1}"
+    local TEMP_CSV="${WORKING_DIR}/rsgsheets/rsgsheet_${RUNHASH}_fixed.csv"
 
-    [Data]" | sed 's/^[ \t]*//' > "${1}"
+    # Load indices into associative arrays
+    declare -A i7_map i5_map
+    while IFS=$'\t' read -r barcode_well i7_sequence i5_sequence; do
+        i7_map["$barcode_well"]="$i7_sequence"
+        i5_map["$barcode_well"]="$i5_sequence"
+    done < <(tail -n +2 "${BASE_DIR}"/indices.txt)
+
+    # Create temporary CSV by joining samplesheet with indices
+    {
+        echo "Sample_ID,Sample_Name,Sample_Plate,Sample_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project"
+        while IFS=$'\t' read -r sample_id barcode_well; do
+            # Extract project name: remove everything from first digit onwards
+            project=$(echo "$sample_id" | sed 's/[0-9].*//')
+            i7="${i7_map[$barcode_well]}"
+            i5="${i5_map[$barcode_well]}"
+            echo "$sample_id,$sample_id,,$barcode_well,,$i7,,$i5,$project"
+        done < "${SAMPLESHEET}"
+    } > "${TEMP_CSV}"
     
+    cat > "${OUTPUT_FILE}" << EOF
+[Header]
+Date,${RUNDATE}
+Workflow,GenerateFASTQ
+Experiment Name,NSQ${RUNNB}
+
+[Data]
+EOF
+
+    # Append fixed samplesheet
+    cat "${TEMP_CSV}" >> "${OUTPUT_FILE}"
+
     ## -------- Check that all users detected in the samplesheet are already registered in `users.conf`. 
     USERS_CONFIG="${BASE_DIR}"/users.conf
-    LISTED_USERS_IDS=`sed '1d' "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv | sed 's/.*,//' | sort | uniq`
-    REGISTERED_USERS_IDS=`grep '\[' ${USERS_CONFIG} | sed 's,[][],,g'`
+    LISTED_USERS_IDS=$(tail -n +2 "${TEMP_CSV}" | cut -d',' -f9 | sort | uniq)
     unset UNREGISTERED_IDS
     for USER in $LISTED_USERS_IDS
     do
-        if ( test `grep $USER <(grep '\[' ${USERS_CONFIG} | sed 's,[][],,g') | wc -l` -eq 0 ) ; then
+        if ! grep -q "^\[${USER}\]" "${USERS_CONFIG}"; then
             UNREGISTERED_IDS="${UNREGISTERED_IDS} ${USER}"
         fi
     done
-    if ( test -n "${UNREGISTERED_IDS}" ) ; then
+    if [ -n "${UNREGISTERED_IDS}" ]; then
         msg="The following user(s) are not registered yet:\n\n${UNREGISTERED_IDS}\n\nPlease fill in ${USERS_CONFIG} before re-attempting to demultiplex."
         email_error "${msg}"
         echo -e "${msg}"
+        rm -rf "${WORKING_DIR}"/rsgsheets/
         exit 1
     fi
 
@@ -101,26 +110,25 @@ function fix_local_samplesheet {
         msg="The following index(es) are not registered yet:\n\n${UNREGISTERED_INDICES}\n\nPlease fill in ${INDICES} before re-attempting to demultiplex."
         email_error "${msg}"
         echo -e "${msg}"
+        rm -rf "${WORKING_DIR}"/rsgsheets/
         exit 1
     fi
 
-    ## -------- Copy the fixed samplesheet to the output path
-    cat "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv >> "${1}"
     rm -rf "${WORKING_DIR}"/rsgsheets/
 }
 
 ## - Email notification
 function email_start {
-    SAMPLES=`cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' '`
-    echo -e "Run ${RUN} started @ `date`\npath: "${SOURCE}"/\nsamples: ${SAMPLES}" | mailx \
+    SAMPLES=$(cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv | sed -n '/Sample_ID/,$p' | sed 's/^//g' | sed 's/^$//g' | grep -v '^,' | grep -v -P "^," | sed '1d' | cut -f1 -d, | tr '\n' ' ')
+    echo -e "Run ${RUN} started @ $(date)\npath: ${SOURCE}\nsamples: ${SAMPLES}" | mailx \
         -s "[CLUSTER INFO] Submitted run ${RUN} to autobcl2fastq" \
         -a "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv \
-        ${EMAIL} 
+        "${EMAIL}"
 }
 function email_error {
     echo -e "${1}" | mailx \
         -s "[CLUSTER INFO] ERROR run ${RUN} to autobcl2fastq" \
-        ${EMAIL} 
+        "${EMAIL}"
 }
 
 ## - Logging function
@@ -150,8 +158,6 @@ SSH_HOSTNAME=sftpcampus
 DESTINATION=/pasteur/gaia/projets/p02/Rsg_reads/nextseq_runs/ # Where the fastq are written at the end, should be `Rsg_reads/nextseq_runs` [HAS TO BE MOUNTED ON SFTPCAMPUS]
 WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq/ # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/opt/hpc/slurm/current/bin/ # Directory to sbatch bin
-BIN_DIR=/pasteur/appa/homes/jaseriza/micromamba/bin/ # For xlsx2csv and Rscript dependencies
-RCLONE_CONFIG=/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/rclone.conf
 SLURM_PARTITION="common,dedicated"
 SLURM_QOS="fast"
 BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in:
@@ -185,16 +191,6 @@ do
         ;;
         --sbatch_dir)
         SBATCH_DIR="${2}"
-        shift 
-        shift 
-        ;;
-        --bin_dir)
-        BIN_DIR="${2}"
-        shift 
-        shift 
-        ;;
-        --rclone_conf)
-        RCLONE_CONFIG="${2}"
         shift 
         shift 
         ;;
@@ -259,20 +255,20 @@ if ( test ! -f "${SAMPLESHEET}" ) ; then
 fi
 fn_log "Using the local samplesheet: ${SAMPLESHEET}"
 fix_local_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
+fn_log "Fixed sample sheet created at: ${WORKING_DIR}/samplesheets/SampleSheet_${RUNDATE}_${RUNNB}_${RUNHASH}.csv"
 echo -e ""
 cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
 echo -e ""
 
 ## - Download run raw data
-fn_log "Downloading raw data from Biomics"
-FILEPATH="${WORKING_DIR}/runs/`basename ${URL}`"
-if [ -f "${FILEPATH}" ]; then
-    curl -L -z "${FILEPATH}" "${URL}" -o "${FILEPATH}"
+RUN_TAR_FILE="${WORKING_DIR}/runs/`basename ${URL}`"
+fn_log "Downloading raw data from Biomics to: ${RUN_TAR_FILE}"
+if [ -f "${RUN_TAR_FILE}" ]; then
+    curl -L -z "${RUN_TAR_FILE}" "${URL}" -o "${RUN_TAR_FILE}"
 else
-    curl -L "${URL}" -o "${FILEPATH}"
+    curl -L "${URL}" -o "${RUN_TAR_FILE}"
 fi
-tar -xf "${FILEPATH}" --directory "${WORKING_DIR}"/runs/
-rm "${FILEPATH}"
+tar -xf "${RUN_TAR_FILE}" --directory "${WORKING_DIR}"/runs/
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN ---------------------------
@@ -298,4 +294,5 @@ fn_log "Processing run ${RUN}"
     --export=SSH_HOSTNAME="${SSH_HOSTNAME}",BASE_DIR="${BASE_DIR}",WORKING_DIR="${WORKING_DIR}",RUN="${RUN}",EMAIL="${EMAIL}",DESTINATION="${DESTINATION}" \
     "${BASE_DIR}/bin/process_run_biomics.sh"
 
+rm "${RUN_TAR_FILE}"
 exit 0
