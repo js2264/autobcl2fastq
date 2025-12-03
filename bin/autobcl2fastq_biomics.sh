@@ -46,76 +46,7 @@ function usage {
     echo -e ""
     echo -e "   --url <URL>                      | The link provided by Biomics to download sequencing data."
     echo -e ""
-    echo -e "   --samplesheet <PATH>             | Provide a local path to the sample sheet."
     echo -e ""
-    echo -e ""
-}
-
-## - Compare the list of run sheets from RSG Teams folder (shared with the lab) to the list of samplesheets already processed. 
-# This requires a custom rsgteams access point set up for `rclone`.
-function fetch_samplesheets {
-    grep -v -f <(ls "${WORKING_DIR}"/samplesheets/ | sed 's,.*_,,' | sed 's,.csv,,') <("${BIN_DIR}"/rclone lsf rsgteams:'Experimentalist group/sequencing_runs/' --config "${RCLONE_CONFIG}" | grep rsgsheet | grep -v xxx) \
-    | sed 's,rsgsheet_,,' | sed 's,.xlsx,,' > "${1}"
-}
-
-## - Create an Illumina sample sheet using info from an Rsg sample sheet
-function fix_samplesheet {
-    "${BIN_DIR}"/rclone copy rsgteams:"Experimentalist group/sequencing_runs/rsgsheet_${RUNHASH}.xlsx" "${WORKING_DIR}"/rsgsheets/ --config "${RCLONE_CONFIG}"
-    "${BIN_DIR}"/xlsx2csv "${WORKING_DIR}"/rsgsheets/rsgsheet_${RUNHASH}.xlsx | cut -f 1-8 -d, | grep -v ^, | grep -v ^[0-9]*,, > "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv
-    cmds=`echo -e "
-    x <- read.csv('"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}".csv') ;
-    y <- read.csv('${BASE_DIR}/indices.txt', header = TRUE, sep = '\\\\\t') ; 
-    x <- merge(x, y, by = 'barcode_well', all.x = TRUE) ;
-    z <- data.frame(Sample_ID = x\\$sample_id, Sample_Name = x\\$sample_id, Sample_Plate = '', Sample_Well = x\\$barcode_well, I7_Index_ID = '', index = x\\$i7_sequence, I5_Index_ID = '', index2 = x\\$i5_sequence, Sample_Project = gsub('[0-9].*', '', x\\$sample_id)) ;
-    write.table(z, '"${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv', quote = FALSE, row.names = FALSE, col.names = TRUE, sep = ',')
-    "`
-    "${BIN_DIR}"/Rscript <(echo "${cmds}")
-    echo "[Header]
-    Date,"${RUNDATE}"
-    Workflow,GenerateFASTQ
-    Experiment Name,NSQ"${RUNNB}"
-
-    [Data]" | sed 's/^[ \t]*//' > "${1}"
-    
-    ## -------- Check that all users detected in the samplesheet are already registered in `users.conf`. 
-    USERS_CONFIG="${BASE_DIR}"/users.conf
-    LISTED_USERS_IDS=`sed '1d' "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv | sed 's/.*,//' | sort | uniq`
-    REGISTERED_USERS_IDS=`grep '\[' ${USERS_CONFIG} | sed 's,[][],,g'`
-    unset UNREGISTERED_IDS
-    for USER in $LISTED_USERS_IDS
-    do
-        if ( test `grep $USER <(grep '\[' ${USERS_CONFIG} | sed 's,[][],,g') | wc -l` -eq 0 ) ; then
-            UNREGISTERED_IDS="${UNREGISTERED_IDS} ${USER}"
-        fi
-    done
-    if ( test -n "${UNREGISTERED_IDS}" ) ; then
-        msg="The following user(s) are not registered yet:\n\n${UNREGISTERED_IDS}\n\nPlease fill in ${USERS_CONFIG} before re-attempting to demultiplex."
-        email_error "${msg}"
-        echo -e "${msg}"
-        exit 1
-    fi
-
-    ## -------- Check that all indices provided are listed in `indices.txt`
-    INDICES="${BASE_DIR}"/indices.txt
-    LISTED_INDICES=`sed '1d' "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv | sed 's/^[^,]*,[^,]*,,//' | sed 's/,.*//'`
-    REGISTERED_INDICES=`sed 's,\s.*,,' ${INDICES}`
-    unset UNREGISTERED_INDICES
-    for INDEX in $LISTED_INDICES
-    do
-        if ( test `grep $INDEX ${INDICES} | wc -l` -eq 0 ) ; then
-            UNREGISTERED_INDICES="${UNREGISTERED_INDICES} ${INDEX}"
-        fi
-    done
-    if ( test -n "${UNREGISTERED_INDICES}" ) ; then
-        msg="The following index(es) are not registered yet:\n\n${UNREGISTERED_INDICES}\n\nPlease fill in ${INDICES} before re-attempting to demultiplex."
-        email_error "${msg}"
-        echo -e "${msg}"
-        exit 1
-    fi
-
-    ## -------- Copy the fixed samplesheet to the output path
-    cat "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv >> "${1}"
-    rm -rf "${WORKING_DIR}"/rsgsheets/
 }
 
 ## - Create an Illumina sample sheet using info from an LOCAL Rsg sample sheet
@@ -275,11 +206,6 @@ do
         shift 
         shift 
         ;;
-        --samplesheet)
-        samplesheet="${2}"
-        shift 
-        shift 
-        ;;
         #####
         ##### BASIC ARGUMENTS
         #####
@@ -312,18 +238,7 @@ if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=J
 fi
 
 ## - Check that Biomics run link has been manually provided/sent by email
-if ( test -n "${URL}" ) ; then
-    echo "Continuing with run URL manually provided: ${URL}"
-else
-    fn_log "Checking mailbox for Biomics e-mail"
-    URL=`"${BASE_DIR}"/bin/check_emails.py`
-    if ( test -n "${URL}" ) ; then
-        echo "Run link found: ${URL}"
-    else
-        echo "No run link found. You can manually provide one with \`--url <URL>\`."
-        exit 0
-    fi
-fi
+fn_log "Continuing with run URL manually provided: ${URL}"
 
 ## - Download run sample sheet from rsgteams
 RUN=`basename ${URL} | sed 's,__.*,,'`
@@ -333,22 +248,31 @@ RUNNB=`echo "${RUN}" | sed "s,.*${SEQID}_,,g" | sed "s,_.*,,g"`
 RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
 SOURCE="${WORKING_DIR}/runs/"
 echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
-if ( test -n "${samplesheet}" ) ; then
-    fn_log "Using the local samplesheet: ${samplesheet}"
-    fix_local_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
-else
-    fn_log "Downloading run ${RUNHASH} sample sheet from RSG Teams folder"
-    fix_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
+
+## - Check that the samplesheet exists
+SAMPLESHEET=/pasteur/appa/homes/jaseriza/appascratch/autobcl2fastq/samplesheets_raw/rsgsheet_${RUNHASH}.tsv
+if ( test ! -f "${SAMPLESHEET}" ) ; then
+    msg="The samplesheet for run ${RUN} could not be found at path: ${SAMPLESHEET}\n\nPlease check and re-attempt to demultiplex."
+    email_error "${msg}"
+    echo -e "${msg}"
+    exit 1
 fi
+fn_log "Using the local samplesheet: ${SAMPLESHEET}"
+fix_local_samplesheet "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
 echo -e ""
 cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
 echo -e ""
 
 ## - Download run raw data
 fn_log "Downloading raw data from Biomics"
-curl -L "${URL}" -o "${WORKING_DIR}/runs/`basename ${URL}`"
-tar -xf "${WORKING_DIR}"/runs/`basename "${URL}"` --directory "${WORKING_DIR}"/runs/
-rm "${WORKING_DIR}"/runs/`basename "${URL}"`
+FILEPATH="${WORKING_DIR}/runs/`basename ${URL}`"
+if [ -f "${FILEPATH}" ]; then
+    curl -L -z "${FILEPATH}" "${URL}" -o "${FILEPATH}"
+else
+    curl -L "${URL}" -o "${FILEPATH}"
+fi
+tar -xf "${FILEPATH}" --directory "${WORKING_DIR}"/runs/
+rm "${FILEPATH}"
 
 ## ------------------------------------------------------------------
 ## ------------------- PROCESSING NEW RUN ---------------------------
