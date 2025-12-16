@@ -8,6 +8,13 @@ Biomics:
     --url <BIOMICS_URL>
 ```
 
+With a CRON job, to automatically check for new Biomics runs and
+demultiplex them:
+
+```sh
+/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/bin/autobcl2fastq_biomics.sh 
+```
+
 ## Options 
 
 ```sh
@@ -22,10 +29,6 @@ Biomics:
                                      Samplesheets are going to be formatted and backed up here."
 --sbatch_dir <SBATCH_DIR>        | Default: /opt/hpc/slurm/current/bin/"
                                      Directory for sbatch dependency."
---bin_dir <BIN_DIR>              | Default: /pasteur/appa/homes/jaseriza/miniforge/bin/"
-                                     Directory for xlsx2csv and Rscript dependencies."
---rclone_conf <RCLONE_CONFIG>    | Default: /pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/rclone.conf"
-                                     This file contains credentials to authenticate to RSG Teams repository."
 ```
 
 ## Dependencies 
@@ -39,39 +42,13 @@ the server where demultiplexed reads will be copied.
 
 Several secrets have to be defined for automated fetching from Biomics: 
 
-- `username`: Pasteur email address
 - `password`: Pasteur email password
-- `sender`: Pasteur email address of Biomics team sender
-- `imap_server`: Pasateur imap server
 
-### rclone access
+### Python environment for email checking
 
-A specific rclone config is required to fetch RSG sequencing run sample sheets.
+A `micromamba` environment named `autobcl2fastq` must be created with
+the dependencies listed in `environment.yml`.
 
-```sh
-conda install -y -c conda-forge rclone 
-rclone config
-# name: rsg
-# storage: onedrive
-# client_id: <LEAVE BLANK>
-# client_secret: <LEAVE BLANK>
-# region: global
-# edit advanced config: n
-# use auto config: n
-# ... Open a terminal on your local machine, type `rclone authorize "onedrive"` then login from the web page
-# config_token: <COPY-PASTE THE TOKEN OBTAINED FROM PREVIOUS STEP>
-# config_type: search
-# config_search_term: RSG
-# config_driveid: 1 (Documents)
-# Drive OK: y
-rclone ls rsgteams:'Experimentalist group/sequencing_runs/'
+```shell
+micromamba env create -f environment.yml
 ```
-
-### Other 
-
-The following binaries should be available in the system. Their directory 
-can be set up using `--sbatch_dir <SBATCH_DIR>` and/or `--bin_dir <BIN_DIR>`. 
-
-- `xlsx2csv`
-- `Rscript`
-- `sbatch`

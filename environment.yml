@@ -1,0 +1,12 @@
+name: autobcl2fastq
+channels:
+  - conda-forge
+dependencies:
+  - office365-rest-python-client
+  - exchangelib
+  - cryptography
+  - imaplib
+  - pandas
+  - openpyxl
+  - pyyaml
+  

@@ -154,6 +154,8 @@ function cleanup() {
 # Default values of arguments
 
 EMAIL=jaseriza@pasteur.fr
+SENDER=ekornobi@pasteur.fr
+SUBJECT="Biomics downloadable link"
 SSH_HOSTNAME=sftpcampus
 DESTINATION=/pasteur/gaia/projets/p02/Rsg_reads/nextseq_runs/ # Where the fastq are written at the end, should be `Rsg_reads/nextseq_runs` [HAS TO BE MOUNTED ON SFTPCAMPUS]
 WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq/ # Where the bcl files are processed into fastq, ideally a fast scratch
@@ -233,8 +235,16 @@ if ( test -f "${WORKING_DIR}"/PROCESSING || test `${SBATCH_DIR}/sacct --format=J
     exit 0
 fi
 
-## - Check that Biomics run link has been manually provided/sent by email
-fn_log "Continuing with run URL manually provided: ${URL}"
+## - Check whether a Biomics run link has been manually provided/sent by email
+if ( test -z "${URL}" ) ; then
+    fn_log "No run URL manually provided, checking email inbox for new run link"
+    URL=$(micromamba run -n autobcl2fastq ./bin/check_emails.py --username "${EMAIL}" --sender "${SENDER}" --subject "${SUBJECT}")
+    if ( test -z "${URL}" ) ; then
+        fn_log "No new run URL found in email inbox. Exiting now."
+        exit 0
+    fi
+fi
+fn_log "Continuing with run URL: ${URL}"
 
 ## - Download run sample sheet from rsgteams
 RUN=`basename ${URL} | sed 's,__.*,,'`
@@ -246,7 +256,7 @@ SOURCE="${WORKING_DIR}/runs/"
 echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
 
 ## - Check that the samplesheet exists
-SAMPLESHEET=/pasteur/appa/homes/jaseriza/appascratch/autobcl2fastq/samplesheets_raw/rsgsheet_${RUNHASH}.tsv
+SAMPLESHEET=`micromamba run -n autobcl2fastq ./bin/check_samplesheets.py --hash ${RUNHASH} --email ${EMAIL} --sharepoint-url "https://pasteurfr.sharepoint.com/sites/RSGteam" --entrypoint "/sites/RSGteam/Documents partages/Experimentalist group/sequencing_runs/" --samplesheets-folder ${WORKING_DIR}/samplesheets_raw/`
 if ( test ! -f "${SAMPLESHEET}" ) ; then
     msg="The samplesheet for run ${RUN} could not be found at path: ${SAMPLESHEET}\n\nPlease check and re-attempt to demultiplex."
     email_error "${msg}"

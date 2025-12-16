@@ -1,61 +1,71 @@
 #!/usr/bin/env python3
-import yaml
-from pathlib import Path
+import argparse
 import imaplib
 import email
-import email.message
+import sys
 from email.message import Message
 from itertools import compress
-from cryptography.fernet import Fernet
+from passwords import get_passwd
 
-def get_secrets(secrets_file):
-    full_file_path = Path(secrets_file).parent.joinpath(secrets_file)
-    with open(full_file_path) as settings:
-        settings_data = yaml.load(settings, Loader=yaml.Loader)
-    return settings_data
 
-def get_mailbox(secrets, key):
-    username = secrets['username']
-    f = Fernet(key)
-    token = bytes(secrets['token'], 'utf-8')
-    #f.encrypt(b"<pasteur_webmail_password>") --> store in secrets[["token"]]
-    password = f.decrypt(token).decode(encoding = 'utf-8')
-    imap_server = secrets['imap_server']
-    mail = imaplib.IMAP4_SSL(imap_server)
-    mail.login(username, password)
-    return(mail)
-
-def read_mail(mailbox, sender):
+def fetch_new_run_email(
+    username,
+    sender,
+    subject,
+    secrets_file=".secrets.yaml",
+    fernet_key=".fernet.key",
+):
+    # Read emails
+    passwd = get_passwd(secrets_file, fernet_key)
+    mailbox = imaplib.IMAP4_SSL("email.pasteur.fr", 993)
+    mailbox.login(username, passwd)
     mailbox.select("INBOX")
-    _, mail = mailbox.search(None, '(UNSEEN FROM "' + sender + '" SUBJECT "Biomics downloadable link")')
+    _, mail = mailbox.search(
+        None,
+        '(UNSEEN FROM "' + sender + '" SUBJECT "' + subject + '")',
+    )
+
+    # Fetch the only one new email expected
     uid = [int(s) for s in mail[0].split()]
-    if len(uid) == 0: 
-        raise Exception("No new email found.")
-    if len(uid) > 1: 
-        raise Exception("More than 1 email detected. Please make up your mind!")
-    _, content = mailbox.fetch(str(uid[0]), '(RFC822 BODY[TEXT])')
-    message = email.message_from_bytes(content[0][1], _class = Message) 
+    if len(uid) == 0:
+        print("No new email found.", file=sys.stderr)
+        return None
+    if len(uid) > 1:
+        print("More than 1 email detected. Please make up your mind!", file=sys.stderr)
+        return None
+    _, content = mailbox.fetch(str(uid[0]), "(RFC822 BODY[TEXT])")
+    message = email.message_from_bytes(content[0][1], _class=Message)
     for part in message.walk():
-        if part.get_content_type() == 'text/plain':
+        if part.get_content_type() == "text/plain":
             txt = part.get_payload(decode=1)
-    return(txt.decode())
 
-def find_link(mail): 
-    lines = mail.splitlines()
-    url = list(compress(lines, [x.startswith('https') for x in lines]))[0]
-    return(url)
+    lines = txt.decode().splitlines()
+    url = list(compress(lines, [x.startswith("https") for x in lines]))[0]
+    mailbox.close()
+    mailbox.logout()
+    return url
 
-def main():
-    secrets = get_secrets("/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/.secrets.yaml")
-    key = get_secrets("/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/.fernet.key")
-    mailbox = get_mailbox(secrets, key)
-    try:
-        mail = read_mail(mailbox, secrets['sender'])
-        link = find_link(mail)
-    except:
-        link = ""
-    return(link)
+
+def main(username, sender, subject):
+    url = fetch_new_run_email(username=username, sender=sender, subject=subject)
+    if url is None:
+        return 1
+    print(f"New URL found:", file=sys.stderr)
+    print(f"  {url}", file=sys.stderr)
+    print(url)
+    return 0
+
 
 if __name__ == "__main__":
-    print(main())
-
+    parser = argparse.ArgumentParser(description="Fetch new run email from inbox")
+    parser.add_argument("--username", required=True, help="Email username")
+    parser.add_argument("--sender", required=True, help="Email sender")
+    parser.add_argument("--subject", required=True, help="Email subject")
+    args = parser.parse_args()
+    exit(
+        main(
+            username=args.username,
+            sender=args.sender,
+            subject=args.subject,
+        )
+    )
