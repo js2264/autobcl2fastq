@@ -16,8 +16,8 @@ def fetch_samplesheet(
     sharepoint_url,
     entrypoint,
     samplesheets_folder,
-    secrets_file=".secrets.yaml",
-    fernet_key=".fernet.key",
+    secrets_file="/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.secrets.yaml",
+    fernet_key="/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.fernet.key",
 ):
     passwd = get_passwd(secrets_file, fernet_key)
     ctx = ClientContext(sharepoint_url).with_credentials(UserCredential(email, passwd))

@@ -6,7 +6,9 @@ from cryptography.fernet import Fernet
 from pathlib import Path
 
 
-def init_encryption_key(key_file=".fernet.key"):
+def init_encryption_key(
+    key_file="/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.fernet.key",
+):
     """Create encryption key if it doesn't exist"""
     key_path = Path(key_file)
 
@@ -20,7 +22,10 @@ def init_encryption_key(key_file=".fernet.key"):
     return key_path.read_bytes()
 
 
-def set_passwd(secrets_file, key_file=".fernet.key"):
+def set_passwd(
+    secrets_file,
+    key_file="/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.fernet.key",
+):
     """
     Prompt user for password, encrypt it, and store in YAML file
 
@@ -52,7 +57,10 @@ def set_passwd(secrets_file, key_file=".fernet.key"):
     return True
 
 
-def get_passwd(secrets_file, key_file=".fernet.key"):
+def get_passwd(
+    secrets_file,
+    key_file="/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.fernet.key",
+):
     """
     Retrieve and decrypt password from YAML file
 

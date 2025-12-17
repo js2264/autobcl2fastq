@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 VERSION=0.6.2
 SCRIPTPATH="$( cd -- "$(dirname $(dirname "$0"))" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
@@ -42,7 +43,9 @@ function usage {
 
 ## - Create an Illumina sample sheet using info from an LOCAL Rsg sample sheet
 function fix_local_samplesheet {
-    mkdir "${WORKING_DIR}"/rsgsheets/
+    if ( test ! -d "${WORKING_DIR}"/samplesheets/ ) ; then
+        mkdir "${WORKING_DIR}"/samplesheets/
+    fi
     local OUTPUT_FILE="${1}"
     local TEMP_CSV="${WORKING_DIR}/rsgsheets/rsgsheet_${RUNHASH}_fixed.csv"
 
@@ -80,7 +83,7 @@ EOF
     ## -------- Check that all users detected in the samplesheet are already registered in `users.conf`. 
     USERS_CONFIG="${BASE_DIR}"/users.conf
     LISTED_USERS_IDS=$(tail -n +2 "${TEMP_CSV}" | cut -d',' -f9 | sort | uniq)
-    unset UNREGISTERED_IDS
+    UNREGISTERED_IDS=""
     for USER in $LISTED_USERS_IDS
     do
         if ! grep -q "^\[${USER}\]" "${USERS_CONFIG}"; then
@@ -99,7 +102,7 @@ EOF
     INDICES="${BASE_DIR}"/indices.txt
     LISTED_INDICES=`sed '1d' "${WORKING_DIR}"/rsgsheets/rsgsheet_"${RUNHASH}"_fixed.csv | sed 's/^[^,]*,[^,]*,,//' | sed 's/,.*//'`
     REGISTERED_INDICES=`sed 's,\s.*,,' ${INDICES}`
-    unset UNREGISTERED_INDICES
+    UNREGISTERED_INDICES=""
     for INDEX in $LISTED_INDICES
     do
         if ( test `grep $INDEX ${INDICES} | wc -l` -eq 0 ) ; then
@@ -156,10 +159,12 @@ function cleanup() {
 EMAIL=jaseriza@pasteur.fr
 SENDER=ekornobi@pasteur.fr
 SUBJECT="Biomics downloadable link"
+URL=""
 SSH_HOSTNAME=sftpcampus
 DESTINATION=/pasteur/gaia/projets/p02/Rsg_reads/nextseq_runs/ # Where the fastq are written at the end, should be `Rsg_reads/nextseq_runs` [HAS TO BE MOUNTED ON SFTPCAMPUS]
 WORKING_DIR=/pasteur/appa/scratch/jaseriza/autobcl2fastq/ # Where the bcl files are processed into fastq, ideally a fast scratch
 SBATCH_DIR=/opt/hpc/slurm/current/bin/ # Directory to sbatch bin
+MICROMAMBA_BIN=/pasteur/appa/homes/jaseriza/.local/bin/micromamba
 SLURM_PARTITION="common,dedicated"
 SLURM_QOS="fast"
 BASE_DIR="${SCRIPTPATH}" # Where the script is hosted, should be in:
@@ -238,7 +243,7 @@ fi
 ## - Check whether a Biomics run link has been manually provided/sent by email
 if ( test -z "${URL}" ) ; then
     fn_log "No run URL manually provided, checking email inbox for new run link"
-    URL=$(micromamba run -n autobcl2fastq ./bin/check_emails.py --username "${EMAIL}" --sender "${SENDER}" --subject "${SUBJECT}")
+    URL=$("${MICROMAMBA_BIN}" run -n autobcl2fastq ${BASE_DIR}/bin/check_emails.py --username "${EMAIL}" --sender "${SENDER}" --subject "${SUBJECT}")
     if ( test -z "${URL}" ) ; then
         fn_log "No new run URL found in email inbox. Exiting now."
         exit 0
@@ -256,7 +261,7 @@ SOURCE="${WORKING_DIR}/runs/"
 echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
 
 ## - Check that the samplesheet exists
-SAMPLESHEET=`micromamba run -n autobcl2fastq ./bin/check_samplesheets.py --hash ${RUNHASH} --email ${EMAIL} --sharepoint-url "https://pasteurfr.sharepoint.com/sites/RSGteam" --entrypoint "/sites/RSGteam/Documents partages/Experimentalist group/sequencing_runs/" --samplesheets-folder ${WORKING_DIR}/samplesheets_raw/`
+SAMPLESHEET=$("${MICROMAMBA_BIN}" run -n autobcl2fastq ${BASE_DIR}/bin/check_samplesheets.py --hash ${RUNHASH} --email ${EMAIL} --sharepoint-url "https://pasteurfr.sharepoint.com/sites/RSGteam" --entrypoint "/sites/RSGteam/Documents partages/Experimentalist group/sequencing_runs/" --samplesheets-folder ${WORKING_DIR}/samplesheets_raw/)
 if ( test ! -f "${SAMPLESHEET}" ) ; then
     msg="The samplesheet for run ${RUN} could not be found at path: ${SAMPLESHEET}\n\nPlease check and re-attempt to demultiplex."
     email_error "${msg}"

@@ -12,8 +12,8 @@ def fetch_new_run_email(
     username,
     sender,
     subject,
-    secrets_file=".secrets.yaml",
-    fernet_key=".fernet.key",
+    secrets_file="/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.secrets.yaml",
+    fernet_key="/pasteur/appa/homes/jaseriza/rsg_fast/jaseriza/autobcl2fastq/.fernet.key",
 ):
     # Read emails
     passwd = get_passwd(secrets_file, fernet_key)
