@@ -46,6 +46,9 @@ function fix_local_samplesheet {
     if ( test ! -d "${WORKING_DIR}"/samplesheets/ ) ; then
         mkdir "${WORKING_DIR}"/samplesheets/
     fi
+    if ( test ! -d "${WORKING_DIR}"/rsgsheets/ ) ; then
+        mkdir "${WORKING_DIR}"/rsgsheets/
+    fi
     local OUTPUT_FILE="${1}"
     local TEMP_CSV="${WORKING_DIR}/rsgsheets/rsgsheet_${RUNHASH}_fixed.csv"
 
