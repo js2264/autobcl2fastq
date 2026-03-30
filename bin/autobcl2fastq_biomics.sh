@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-VERSION=0.6.2
+VERSION=0.6.3
 SCRIPTPATH="$( cd -- "$(dirname $(dirname "$0"))" >/dev/null 2>&1 ; pwd -P )" # absolute script path, handling symlinks, spaces and hyphens
 RUNHASH=""
 # URL="https://dl.pasteur.fr/fop/C9V4VBVF/230516_VH00537_116_AACLHW3M5__Wed_May_17_10h56m50_2023.tar"
@@ -263,8 +263,14 @@ RUNHASH=`echo "${RUN}" | sed "s,.*${RUNNB}_,,g" | sed "s,_.*,,g"`
 SOURCE="${WORKING_DIR}/runs/"
 echo "${RUN}" > "${WORKING_DIR}"/PROCESSING
 
-## - Check that the samplesheet exists
-SAMPLESHEET=$("${MICROMAMBA_BIN}" run -n autobcl2fastq ${BASE_DIR}/bin/check_samplesheets.py --hash ${RUNHASH} --email ${EMAIL} --sharepoint-url "https://pasteurfr.sharepoint.com/sites/RSGteam" --entrypoint "/sites/RSGteam/Documents partages/Experimentalist group/sequencing_runs/" --samplesheets-folder ${WORKING_DIR}/samplesheets_raw/)
+## - Check that the samplesheet exists, either on server or locally
+SAMPLESHEET=$("${MICROMAMBA_BIN}" run -n autobcl2fastq ${BASE_DIR}/bin/check_samplesheets.py --hash ${RUNHASH} --email ${EMAIL} --sharepoint-url "https://pasteurfr.sharepoint.com/sites/RSGteam" --entrypoint "/sites/RSGteam/Documents partages/Experimentalist group/sequencing_runs/" --samplesheets-folder ${WORKING_DIR}/samplesheets_raw/) 2>/dev/null
+# if variable is still empty, manually assign
+if [ -z "$SAMPLESHEET" ]; then
+    fn_log "No samplesheet found on server, checking locally at: ${WORKING_DIR}/samplesheets_raw/rsgsheet_${RUNHASH}.tsv"
+    SAMPLESHEET="${WORKING_DIR}/samplesheets_raw/rsgsheet_${RUNHASH}.tsv"
+fi
+
 if ( test ! -f "${SAMPLESHEET}" ) ; then
     msg="The samplesheet for run ${RUN} could not be found at path: ${SAMPLESHEET}\n\nPlease check and re-attempt to demultiplex."
     email_error "${msg}"

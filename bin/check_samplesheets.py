@@ -24,7 +24,11 @@ def fetch_samplesheet(
     folder = ctx.web.get_folder_by_server_relative_url(entrypoint)
     files = folder.files
     ctx.load(files)
-    ctx.execute_query()
+    try:
+        ctx.execute_query()
+    except ValueError as e:
+        print(f"Cannot log to {sharepoint_url}: {e}", file=sys.stderr)
+        exit(0)
 
     # Check that `rsgsheet_{hash}.xlsx` exists
     target_filename = f"rsgsheet_{hash}.xlsx"
@@ -36,9 +40,7 @@ def fetch_samplesheet(
 
     # If not found, raise error
     if not target_file:
-        raise FileNotFoundError(
-            f"File {target_filename} not found in SharePoint folder."
-        )
+        raise FileNotFoundError(f"File {target_filename} not found in SharePoint folder.")
 
     # If found, download the file in tmp folder
     tmp_path = tempfile.NamedTemporaryFile(suffix=".xlsx")
@@ -73,15 +75,11 @@ def main(hash, email, sharepoint_url, entrypoint, samplesheets_folder):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch samplesheet from SharePoint")
-    parser.add_argument(
-        "--hash", required=True, help="Hash starting with 'AA' (9 characters)"
-    )
+    parser.add_argument("--hash", required=True, help="Hash starting with 'AA' (9 characters)")
     parser.add_argument("--email", required=True, help="Email address")
     parser.add_argument("--sharepoint-url", required=True, help="SharePoint site URL")
     parser.add_argument("--entrypoint", required=True, help="SharePoint folder path")
-    parser.add_argument(
-        "--samplesheets-folder", required=True, help="Local folder to save samplesheets"
-    )
+    parser.add_argument("--samplesheets-folder", required=True, help="Local folder to save samplesheets")
     args = parser.parse_args()
     exit(
         main(
