@@ -284,6 +284,23 @@ echo -e ""
 cat "${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
 echo -e ""
 
+## - Check for duplicate barcode combinations (index + index2, columns 6 and 8)
+fn_log "Checking for duplicate barcode combinations in sample sheet"
+FIXED_SAMPLESHEET="${WORKING_DIR}"/samplesheets/SampleSheet_"${RUNDATE}"_"${RUNNB}"_"${RUNHASH}".csv
+DUPLICATE_BARCODES=$(sed -n '/\[Data\]/,$p' "${FIXED_SAMPLESHEET}" | tail -n +3 | awk -F',' '{print $6","$8}' | sort | uniq -d)
+if [ -n "${DUPLICATE_BARCODES}" ]; then
+    DUPLICATED_IDS=""
+    for BARCODE_PAIR in ${DUPLICATE_BARCODES}; do
+        IDS=$(sed -n '/\[Data\]/,$p' "${FIXED_SAMPLESHEET}" | tail -n +3 | awk -F',' -v bp="${BARCODE_PAIR}" '{if ($6","$8 == bp) print $1}' | tr '\n' ' ')
+        DUPLICATED_IDS="${DUPLICATED_IDS}  Barcodes ${BARCODE_PAIR}: ${IDS}\n"
+    done
+    msg="ERROR: Duplicate barcode combinations found in sample sheet.\n\nThe following libraries share identical barcode pairs:\n${DUPLICATED_IDS}\nPlease fix the sample sheet before re-attempting to demultiplex."
+    email_error "${msg}"
+    echo -e "${msg}"
+    exit 1
+fi
+fn_log "All barcode combinations are unique"
+
 ## - Download run raw data
 RUN_TAR_FILE="${WORKING_DIR}/runs/`basename ${URL}`"
 fn_log "Downloading raw data from Biomics to: ${RUN_TAR_FILE}"
