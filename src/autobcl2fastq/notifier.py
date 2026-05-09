@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from rsgutils.mail import SMTPClient
-from rsgutils.secrets import SecretsStore
+from rsgutils.secrets import get_mail_password
 
 from . import __version__ as PACKAGE_VERSION
 from .config import Settings
@@ -111,14 +111,10 @@ class Notifier:
     # -------------------------------------------------------------- private
 
     def _smtp_client(self) -> SMTPClient:
-        store = SecretsStore(self.settings.secrets_file)
         try:
-            password = store.get("mail_password")
-        except (KeyError, FileNotFoundError) as exc:
-            raise RuntimeError(
-                "SMTP password not found in the shared secrets store. "
-                "Run 'rsgutils setup' to store it."
-            ) from exc
+            password = get_mail_password(self.settings)
+        except RuntimeError as exc:
+            raise RuntimeError(str(exc)) from exc
         m = self.settings.mail
         return SMTPClient(
             host=m.smtp_host,

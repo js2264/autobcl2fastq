@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Optional
 
 from rsgutils.mail import IMAPClient
-from rsgutils.secrets import SecretsStore
+from rsgutils.secrets import get_mail_password
 
 from .config import Settings
 
@@ -44,14 +44,10 @@ class BiomicsEmailWatcher:
         return the same message.
         """
         settings = self.settings
-        store = SecretsStore(settings.secrets_file)
         try:
-            password = store.get("mail_password")
-        except (KeyError, FileNotFoundError) as exc:
-            raise RuntimeError(
-                "IMAP password not found in the shared secrets store. "
-                "Run 'rsgutils setup' to store it."
-            ) from exc
+            password = get_mail_password(settings)
+        except RuntimeError as exc:
+            raise RuntimeError(str(exc)) from exc
 
         client = IMAPClient(
             host=settings.mail.imap_host,

@@ -34,8 +34,8 @@ def cli(ctx: click.Context, config: Optional[Path]) -> None:
     """Automated BCL demultiplexing pipeline for Illumina NextSeq runs.
 
     Uses shared RSG infrastructure (IMAP, SMTP, Slurm) from ``rsgutils``.
-    Run [bold]autobcl2fastq init-secrets[/bold] once per machine to store
-    the IMAP/SMTP password.
+    Run [bold]rsgutils setup[/bold] once per machine to store the shared
+    IMAP/SMTP password.
     """
     ctx.ensure_object(dict)
     ctx.obj["settings"] = Settings.load(config)
@@ -46,54 +46,29 @@ def cli(ctx: click.Context, config: Optional[Path]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Setup commands
+# Diagnostics commands
 # ---------------------------------------------------------------------------
-
-
-@cli.command("init-secrets")
-@click.option("--no-prompt", is_flag=True, help="Read password from RSG_MAIL_PASSWORD env var.")
-@click.pass_context
-def init_secrets(ctx: click.Context, no_prompt: bool) -> None:
-    """Store the IMAP/SMTP password in the shared encrypted secrets store.
-
-    Uses the same store as ``rsgutils setup`` — running either command is
-    sufficient; you do not need to run both.
-    """
-    import os
-
-    from rsgutils.secrets import SecretsStore
-
-    settings: Settings = ctx.obj["settings"]
-    store = SecretsStore(settings.secrets_file)
-
-    if no_prompt:
-        password = os.environ.get("RSG_MAIL_PASSWORD", "")
-        if not password:
-            console.print("[red]RSG_MAIL_PASSWORD env var is not set.[/red]")
-            sys.exit(1)
-    else:
-        password = click.prompt("IMAP/SMTP password", hide_input=True, confirmation_prompt=True)
-
-    store.set("mail_password", password)
-    console.print(f"[green]Password stored in {settings.secrets_file}[/green]")
 
 
 @cli.command("check-mail")
 @click.pass_context
 def check_mail(ctx: click.Context) -> None:
-    """Verify IMAP and SMTP connectivity using the stored credentials."""
-    import ssl
-    import smtplib
-    import imaplib
+    """Verify IMAP and SMTP connectivity using the shared RSG credentials.
 
-    from rsgutils.secrets import SecretsStore
+    Credentials are read from the shared RSG secrets store. If you have not
+    stored them yet, run [bold cyan]rsgutils setup[/bold cyan] first.
+    """
+    import imaplib
+    import smtplib
+    import ssl
+
+    from rsgutils.secrets import get_mail_password
 
     settings: Settings = ctx.obj["settings"]
-    store = SecretsStore(settings.secrets_file)
     try:
-        password = store.get("mail_password")
-    except (KeyError, FileNotFoundError):
-        console.print("[red]Password not found. Run 'autobcl2fastq init-secrets' first.[/red]")
+        password = get_mail_password(settings)
+    except RuntimeError as exc:
+        console.print(f"[red]Credentials not found:[/red] {exc}")
         sys.exit(1)
 
     m = settings.mail

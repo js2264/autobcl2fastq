@@ -49,14 +49,11 @@ def test_poll_returns_run_info(tmp_settings):
     url = "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AACLHW3M5__ts.tar"
     mock_email = _make_email_message(url)
 
-    mock_store = MagicMock()
-    mock_store.get.return_value = "secret"
-
     mock_client = MagicMock()
     mock_client.find_emails.return_value = [mock_email]
 
     with (
-        patch("autobcl2fastq.watcher.SecretsStore", return_value=mock_store),
+        patch("autobcl2fastq.watcher.get_mail_password", return_value="secret"),
         patch("autobcl2fastq.watcher.IMAPClient", return_value=mock_client),
     ):
         watcher = BiomicsEmailWatcher(tmp_settings)
@@ -68,14 +65,11 @@ def test_poll_returns_run_info(tmp_settings):
 
 
 def test_poll_returns_none_when_no_emails(tmp_settings):
-    mock_store = MagicMock()
-    mock_store.get.return_value = "secret"
-
     mock_client = MagicMock()
     mock_client.find_emails.return_value = []
 
     with (
-        patch("autobcl2fastq.watcher.SecretsStore", return_value=mock_store),
+        patch("autobcl2fastq.watcher.get_mail_password", return_value="secret"),
         patch("autobcl2fastq.watcher.IMAPClient", return_value=mock_client),
     ):
         watcher = BiomicsEmailWatcher(tmp_settings)
@@ -92,13 +86,11 @@ def test_poll_returns_none_when_body_has_no_url(tmp_settings):
     mock_email.subject = "Biomics downloadable link"
     mock_email.received_at = datetime.now(timezone.utc)
 
-    mock_store = MagicMock()
-    mock_store.get.return_value = "secret"
     mock_client = MagicMock()
     mock_client.find_emails.return_value = [mock_email]
 
     with (
-        patch("autobcl2fastq.watcher.SecretsStore", return_value=mock_store),
+        patch("autobcl2fastq.watcher.get_mail_password", return_value="secret"),
         patch("autobcl2fastq.watcher.IMAPClient", return_value=mock_client),
     ):
         watcher = BiomicsEmailWatcher(tmp_settings)
@@ -108,10 +100,10 @@ def test_poll_returns_none_when_body_has_no_url(tmp_settings):
 
 
 def test_poll_raises_when_password_missing(tmp_settings):
-    mock_store = MagicMock()
-    mock_store.get.side_effect = KeyError("mail_password")
-
-    with patch("autobcl2fastq.watcher.SecretsStore", return_value=mock_store):
+    with patch(
+        "autobcl2fastq.watcher.get_mail_password",
+        side_effect=RuntimeError("Mail password not found in the shared RSG secrets store. Run 'rsgutils setup' to store it."),
+    ):
         watcher = BiomicsEmailWatcher(tmp_settings)
-        with pytest.raises(RuntimeError, match="IMAP password not found"):
+        with pytest.raises(RuntimeError, match="rsgutils setup"):
             watcher.poll()
