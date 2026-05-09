@@ -10,14 +10,11 @@ binary paths, encrypted credential store) are inherited from
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
-from typing import Optional
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from pydantic_settings import SettingsConfigDict
-
 from rsgutils.config import RsgBaseSettings
 
 
@@ -42,7 +39,7 @@ class HPCConfig(BaseModel):
     """Slurm job resource and HPC module settings for maestro."""
 
     partition: str = "common,dedicated"
-    qos: Optional[str] = "fast"
+    qos: str | None = "fast"
     cpus_per_task: int = 20
     mem: str = "48G"
 
@@ -103,11 +100,11 @@ class Settings(RsgBaseSettings):
 
     # Path to users.conf (INI-style file mapping project IDs to users).
     # When absent, user validation is skipped with a warning.
-    users_conf_file: Optional[Path] = XDG_CONFIG / "users.conf"
+    users_conf_file: Path | None = XDG_CONFIG / "users.conf"
 
     # Path to a directory containing adapters.txt, fastq_screen.conf,
     # and indices.txt.  Defaults to the installed package data directory.
-    resources_dir: Optional[Path] = None
+    resources_dir: Path | None = None
 
     biomics: BiomicsConfig = Field(default_factory=BiomicsConfig)
     hpc: HPCConfig = Field(default_factory=HPCConfig)
@@ -149,7 +146,7 @@ class Settings(RsgBaseSettings):
     # ---------------------------------------------------------------- helpers
 
     @classmethod
-    def load(cls, config_file: Optional[Path] = None) -> "Settings":
+    def load(cls, config_file: Path | None = None) -> Settings:
         """Load settings; missing YAML file → defaults + env-var overrides."""
         path = config_file or (XDG_CONFIG / "config.yaml")
         if path.exists():

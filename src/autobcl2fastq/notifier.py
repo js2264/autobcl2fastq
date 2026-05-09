@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from rsgutils.mail import SMTPClient
 from rsgutils.secrets import get_mail_password
@@ -55,20 +54,20 @@ class Notifier:
         run_info: RunInfo,
         *,
         ok: bool,
-        slurm_jobid: Optional[str],
-        sacct_state: Optional[str],
-        exit_code: Optional[str],
-        samplesheet_path: Optional[Path] = None,
-        multiqc_report: Optional[Path] = None,
-        error_message: Optional[str] = None,
+        slurm_jobid: str | None,
+        sacct_state: str | None,
+        exit_code: str | None,
+        samplesheet_path: Path | None = None,
+        multiqc_report: Path | None = None,
+        error_message: str | None = None,
     ) -> None:
         """Send a run-completion or run-failure notification."""
         settings = self.settings
         tag = "Finished" if ok else "FAILED"
-        subject = (
-            f"[CLUSTER INFO] {tag} processing run {run_info.run_id} with autobcl2fastq"
+        subject = f"[CLUSTER INFO] {tag} processing run {run_info.run_id} with autobcl2fastq"
+        status_line = (
+            "completed successfully" if ok else f"FAILED (sacct={sacct_state}, exit={exit_code})"
         )
-        status_line = "completed successfully" if ok else f"FAILED (sacct={sacct_state}, exit={exit_code})"
         body = (
             f"Run {run_info.run_id} {status_line}.\n\n"
             f"  run_id       : {run_info.run_id}\n"
@@ -79,8 +78,8 @@ class Notifier:
             body += f"\n  error: {error_message}\n"
         if not ok:
             body += (
-                f"\nFiles may be partially available in the reads directory.\n"
-                f"Check the Slurm logs for details.\n"
+                "\nFiles may be partially available in the reads directory.\n"
+                "Check the Slurm logs for details.\n"
             )
         else:
             body += (
@@ -101,7 +100,7 @@ class Notifier:
             attachments=attachments,
         )
 
-    def notify_error(self, message: str, run_name: Optional[str] = None) -> None:
+    def notify_error(self, message: str, run_name: str | None = None) -> None:
         """Send an error notification (e.g. validation failures)."""
         settings = self.settings
         tag = f" for run {run_name}" if run_name else ""
@@ -128,15 +127,13 @@ class Notifier:
         to: str,
         subject: str,
         body: str,
-        attachments: Optional[list[Path]] = None,
+        attachments: list[Path] | None = None,
     ) -> None:
         try:
             client = self._smtp_client()
             attach_tuples = None
             if attachments:
-                attach_tuples = [
-                    (p.name, p.read_bytes()) for p in attachments if p.exists()
-                ]
+                attach_tuples = [(p.name, p.read_bytes()) for p in attachments if p.exists()]
             client.send(to=to, subject=subject, body=body, attachments=attach_tuples)
             log.info("Notification sent: %s → %s", subject, to)
         except Exception as exc:

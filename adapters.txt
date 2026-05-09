@@ -145,4 +145,3 @@ ABI_Solid3_EF1_alpha_Sense_Primer             	CATGTGTGTTGAGAGCTTC
 ABI_Solid3_EF1_alpha_Antisense_Primer         	GAAAACCAAAGTGGTCCAC
 ABI_Solid3_GAPDH_Forward_Primer               	TTAGCACCCCTGGCCAAGG
 ABI_Solid3_GAPDH_Reverse_Primer               	CTTACTCCTTGGAGGCCATG
-

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-import os
-import yaml
 import getpass
-from cryptography.fernet import Fernet
+import os
 from pathlib import Path
+
+import yaml
+from cryptography.fernet import Fernet
 
 
 def init_encryption_key(
@@ -17,7 +18,7 @@ def init_encryption_key(
         key = Fernet.generate_key()
         key_path.write_bytes(key)
         os.chmod(key_path, 0o600)  # Only readable by owner
-        print(f"✓ Key saved (permissions: 0o600)")
+        print("✓ Key saved (permissions: 0o600)")
 
     return key_path.read_bytes()
 
@@ -44,7 +45,7 @@ def set_passwd(
     encrypted = cipher.encrypt(password.encode()).decode()
     secrets_path = Path(secrets_file)
     if secrets_path.exists():
-        with open(secrets_path, "r") as f:
+        with open(secrets_path) as f:
             secrets = yaml.safe_load(f) or {}
     else:
         secrets = {}
@@ -81,7 +82,7 @@ def get_passwd(
     if not secrets_path.exists():
         raise FileNotFoundError(f"Secrets file not found: {secrets_file}")
 
-    with open(secrets_path, "r") as f:
+    with open(secrets_path) as f:
         secrets = yaml.safe_load(f)
 
     if "password" not in secrets:

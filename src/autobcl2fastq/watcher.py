@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from rsgutils.mail import IMAPClient
 from rsgutils.secrets import get_mail_password
@@ -37,7 +36,7 @@ class BiomicsEmailWatcher:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    def poll(self) -> Optional[BiomicsRunInfo]:
+    def poll(self) -> BiomicsRunInfo | None:
         """Return the first unseen Biomics email, or *None* if there is none.
 
         Marks the email as seen on the server so subsequent polls don't
@@ -91,7 +90,7 @@ class BiomicsEmailWatcher:
         )
 
 
-def _extract_url(body: str) -> Optional[str]:
+def _extract_url(body: str) -> str | None:
     """Return the first HTTPS URL found in the email body."""
     for line in body.splitlines():
         stripped = line.strip()

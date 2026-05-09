@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import argparse
-import imaplib
 import email
+import imaplib
 import sys
 from email.message import Message
 from itertools import compress
+
 from passwords import get_passwd
 
 
@@ -50,7 +51,7 @@ def main(username, sender, subject):
     url = fetch_new_run_email(username=username, sender=sender, subject=subject)
     if url is None:
         return 1
-    print(f"New URL found:", file=sys.stderr)
+    print("New URL found:", file=sys.stderr)
     print(f"  {url}", file=sys.stderr)
     print(url)
     return 0

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 import rich_click as click
 from rich.console import Console
@@ -30,7 +29,7 @@ click.rich_click.STYLE_HELPTEXT = ""
 @click.version_option(version=__version__, prog_name="autobcl2fastq")
 @click.option("--config", type=click.Path(path_type=Path), default=None, hidden=True)
 @click.pass_context
-def cli(ctx: click.Context, config: Optional[Path]) -> None:
+def cli(ctx: click.Context, config: Path | None) -> None:
     """Automated BCL demultiplexing pipeline for Illumina NextSeq runs.
 
     Uses shared RSG infrastructure (IMAP, SMTP, Slurm) from ``rsgutils``.
@@ -112,7 +111,7 @@ def check_mail(ctx: click.Context) -> None:
 def run_cmd(
     ctx: click.Context,
     url: str,
-    samplesheet: Optional[Path],
+    samplesheet: Path | None,
     dry_run: bool,
 ) -> None:
     """Manually trigger demultiplexing of a single Biomics run."""
@@ -133,7 +132,7 @@ def run_cmd(
         sys.exit(1)
 
     if dry_run:
-        console.print(f"[yellow]Dry run: sbatch script written but not submitted.[/yellow]")
+        console.print("[yellow]Dry run: sbatch script written but not submitted.[/yellow]")
     else:
         console.print(f"[green]Run {run_info.run_id} submitted (Slurm job {job_id}).[/green]")
         # Send start notification
@@ -225,9 +224,7 @@ def _do_poll(settings: Settings) -> None:
 
         # Locate MultiQC report (best effort)
         run_id = record.run_id
-        multiqc = (
-            Path(settings.working_dir) / "multiqc" / run_id / f"{run_id}_multiqc_report.html"
-        )
+        multiqc = Path(settings.working_dir) / "multiqc" / run_id / f"{run_id}_multiqc_report.html"
         ss_path = Path(record.samplesheet_path) if record.samplesheet_path else None
 
         notifier.notify_result(
@@ -261,7 +258,7 @@ def _now() -> str:
     default=None,
 )
 @click.pass_context
-def status_cmd(ctx: click.Context, limit: int, state: Optional[str]) -> None:
+def status_cmd(ctx: click.Context, limit: int, state: str | None) -> None:
     """Display recent run states."""
     from .state import StateDB
 
@@ -282,9 +279,7 @@ def status_cmd(ctx: click.Context, limit: int, state: Optional[str]) -> None:
 
     for r in runs:
         state_style = (
-            "green" if r.state == "completed"
-            else "red" if r.state == "failed"
-            else "yellow"
+            "green" if r.state == "completed" else "red" if r.state == "failed" else "yellow"
         )
         table.add_row(
             r.run_id,

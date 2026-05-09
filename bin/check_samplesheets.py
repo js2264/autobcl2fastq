@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import tempfile
-import sys
 import argparse
-import pandas as pd
+import sys
+import tempfile
 from pathlib import Path
-from passwords import get_passwd
+
+import pandas as pd
 from office365.runtime.auth.authentication_context import UserCredential
 from office365.sharepoint.client_context import ClientContext
+from passwords import get_passwd
 
 
 ## Functions
@@ -43,9 +44,9 @@ def fetch_samplesheet(
         raise FileNotFoundError(f"File {target_filename} not found in SharePoint folder.")
 
     # If found, download the file in tmp folder
-    tmp_path = tempfile.NamedTemporaryFile(suffix=".xlsx")
-    with open(tmp_path.name, "wb") as tmp_file:
-        target_file.download(tmp_file).execute_query()
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+        target_file.download(tmp).execute_query()
+        tmp_path = tmp.name
 
     # Convert it from xlsx to tsv
     local_path = Path(samplesheets_folder) / f"rsgsheet_{hash}.tsv"
@@ -79,7 +80,9 @@ if __name__ == "__main__":
     parser.add_argument("--email", required=True, help="Email address")
     parser.add_argument("--sharepoint-url", required=True, help="SharePoint site URL")
     parser.add_argument("--entrypoint", required=True, help="SharePoint folder path")
-    parser.add_argument("--samplesheets-folder", required=True, help="Local folder to save samplesheets")
+    parser.add_argument(
+        "--samplesheets-folder", required=True, help="Local folder to save samplesheets"
+    )
     args = parser.parse_args()
     exit(
         main(

@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from autobcl2fastq.pipeline import DemuxPipeline, RunInfo
-
 
 # ---------------------------------------------------------------------------
 # RunInfo
@@ -16,9 +15,7 @@ from autobcl2fastq.pipeline import DemuxPipeline, RunInfo
 
 
 def test_run_info_properties():
-    info = RunInfo.from_url(
-        "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AACLHW3M5__ts.tar"
-    )
+    info = RunInfo.from_url("https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AACLHW3M5__ts.tar")
     assert info.run_id == "230516_116_AACLHW3M5"
     assert info.run_name == "230516_VH00537_116_AACLHW3M5"
 

@@ -70,7 +70,7 @@ function fix_local_samplesheet {
             echo "$sample_id,$sample_id,,$barcode_well,,$i7,,$i5,$project"
         done < "${SAMPLESHEET}"
     } > "${TEMP_CSV}"
-    
+
     cat > "${OUTPUT_FILE}" << EOF
 [Header]
 Date,${RUNDATE}
@@ -83,7 +83,7 @@ EOF
     # Append fixed samplesheet
     cat "${TEMP_CSV}" >> "${OUTPUT_FILE}"
 
-    ## -------- Check that all users detected in the samplesheet are already registered in `users.conf`. 
+    ## -------- Check that all users detected in the samplesheet are already registered in `users.conf`.
     USERS_CONFIG="${BASE_DIR}"/users.conf
     LISTED_USERS_IDS=$(tail -n +2 "${TEMP_CSV}" | cut -d',' -f9 | sort | uniq)
     UNREGISTERED_IDS=""
@@ -181,36 +181,36 @@ do
         #####
         --email)
         EMAIL="${2}"
-        shift 
-        shift 
+        shift
+        shift
         ;;
         --ssh_hostname)
         SSH_HOSTNAME="${2}"
-        shift 
-        shift 
+        shift
+        shift
         ;;
         --reads_dir)
         DESTINATION="${2}"
-        shift 
-        shift 
+        shift
+        shift
         ;;
         --working_dir)
         WORKING_DIR="${2}"
-        shift 
-        shift 
+        shift
+        shift
         ;;
         --sbatch_dir)
         SBATCH_DIR="${2}"
-        shift 
-        shift 
+        shift
+        shift
         ;;
         #####
         ##### Manual mode
         #####
         --url)
         URL="${2}"
-        shift 
-        shift 
+        shift
+        shift
         ;;
         #####
         ##### BASIC ARGUMENTS
@@ -320,7 +320,7 @@ email_start
 
 ## - Process run
 ## |--- Fix sample sheet
-## |--- Run bcl2fastq, fastqc, fastq_screen, multiQC 
+## |--- Run bcl2fastq, fastqc, fastq_screen, multiQC
 ## |--- Copy fastq reads to Rsg_reads
 ## |--- Copy reports to Rsg_reads/reports
 ## |--- Enable Read/Write for all files

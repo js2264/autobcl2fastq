@@ -7,11 +7,12 @@ human-inspectable.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 RUN_STATES = (
     "pending",
@@ -58,17 +59,17 @@ class RunRecord:
     url: str
     run_name: str
     run_hash: str
-    samplesheet_path: Optional[str] = None
-    slurm_jobid: Optional[str] = None
-    sbatch_path: Optional[str] = None
+    samplesheet_path: str | None = None
+    slurm_jobid: str | None = None
+    sbatch_path: str | None = None
     state: str = "pending"
-    sacct_state: Optional[str] = None
-    exit_code: Optional[str] = None
-    error_message: Optional[str] = None
-    submitted_at: Optional[str] = field(default_factory=_now)
-    finished_at: Optional[str] = None
-    notified_at: Optional[str] = None
-    autobcl2fastq_version: Optional[str] = None
+    sacct_state: str | None = None
+    exit_code: str | None = None
+    error_message: str | None = None
+    submitted_at: str | None = field(default_factory=_now)
+    finished_at: str | None = None
+    notified_at: str | None = None
+    autobcl2fastq_version: str | None = None
     updated_at: str = field(default_factory=_now)
 
 
@@ -119,21 +120,17 @@ class StateDB:
         assignments = ", ".join(f"{k} = ?" for k in fields)
         values = list(fields.values()) + [run_id]
         with self.transaction() as conn:
-            conn.execute(
-                f"UPDATE runs SET {assignments} WHERE run_id = ?", values
-            )
+            conn.execute(f"UPDATE runs SET {assignments} WHERE run_id = ?", values)
 
-    def get_run(self, run_id: str) -> Optional[RunRecord]:
+    def get_run(self, run_id: str) -> RunRecord | None:
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM runs WHERE run_id = ?", (run_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
         return RunRecord(**dict(row)) if row else None
 
     def list_runs(
         self,
         *,
-        state: Optional[str] = None,
+        state: str | None = None,
         limit: int = 50,
     ) -> list[RunRecord]:
         query = "SELECT * FROM runs"

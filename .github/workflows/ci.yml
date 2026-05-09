@@ -2,38 +2,45 @@ name: CI
 
 on:
   push:
-    branches: [main, devel]
+    branches: [main, master, devel]
   pull_request:
-    branches: [main, devel]
+    branches: [main, master, devel]
 
 jobs:
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          version: "latest"
-      - name: Install ruff
-        run: uv pip install --system ruff
-      - name: ruff check
-        run: ruff check src/ tests/
-      - name: ruff format check
-        run: ruff format --check src/ tests/
+          enable-cache: true
+
+      - name: ruff format
+        run: uvx ruff format --check .
+
+      - name: ruff
+        run: uvx ruff check .
 
   test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          version: "latest"
+          enable-cache: true
 
-      - name: Install dependencies
+      - name: Install package and dev dependencies
         env:
           RSG_PACKAGES_TOKEN: ${{ secrets.RSG_PACKAGES_TOKEN }}
         run: |
@@ -41,5 +48,12 @@ jobs:
             "git+https://${RSG_PACKAGES_TOKEN}@github.com/js2264/rsgutils.git" \
             ".[dev]"
 
-      - name: Run tests
-        run: pytest --cov=autobcl2fastq --cov-report=term-missing --cov-fail-under=60
+      - name: Run tests with coverage
+        run: uv run pytest --cov=autotinymapper --cov-report=term-missing --cov-report=xml -v
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml

@@ -1,7 +1,7 @@
-## Usage 
+## Usage
 
-To demultiplex a run for which a link to the data archive has been sent by 
-Biomics: 
+To demultiplex a run for which a link to the data archive has been sent by
+Biomics:
 
 ```sh
 /pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/bin/autobcl2fastq_biomics.sh \
@@ -12,10 +12,10 @@ With a CRON job, to automatically check for new Biomics runs and
 demultiplex them:
 
 ```sh
-/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/bin/autobcl2fastq_biomics.sh 
+/pasteur/helix/projects/rsg_fast/jaseriza/autobcl2fastq/bin/autobcl2fastq_biomics.sh
 ```
 
-## Options 
+## Options
 
 ```sh
 --email <EMAIL>                  | Default: jaseriza@pasteur.fr"
@@ -31,16 +31,16 @@ demultiplex them:
                                      Directory for sbatch dependency."
 ```
 
-## Dependencies 
+## Dependencies
 
-### SSH config 
+### SSH config
 
 SSH key-based, passwordless access must be set up in `~/.ssh/config` to acces
-the server where demultiplexed reads will be copied. 
+the server where demultiplexed reads will be copied.
 
 ### Secrets
 
-Several secrets have to be defined for automated fetching from Biomics: 
+Several secrets have to be defined for automated fetching from Biomics:
 
 - `password`: Pasteur email password
 

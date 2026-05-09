@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
 
 import pytest
 
 from autobcl2fastq.pipeline import RunInfo
 from autobcl2fastq.samplesheet import SamplesheetManager, _project_from_sample
-
 
 # ---------------------------------------------------------------------------
 # Helpers

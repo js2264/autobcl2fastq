@@ -16,7 +16,6 @@ import csv
 import logging
 from io import StringIO
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
@@ -52,7 +51,7 @@ class SamplesheetManager:
             )
         return self.fix(raw_tsv, run_info)
 
-    def fetch_from_sharepoint(self, run_hash: str) -> Optional[Path]:
+    def fetch_from_sharepoint(self, run_hash: str) -> Path | None:
         """Download ``rsgsheet_{run_hash}.xlsx`` from SharePoint → local TSV.
 
         Returns the local TSV path, or *None* if not found or if the
@@ -61,9 +60,7 @@ class SamplesheetManager:
         try:
             from rsgutils.sharepoint import DeviceFlowSharePointClient
         except ImportError:
-            log.warning(
-                "rsgutils.sharepoint not available — cannot fetch from SharePoint."
-            )
+            log.warning("rsgutils.sharepoint not available — cannot fetch from SharePoint.")
             return None
 
         settings = self.settings
@@ -94,7 +91,7 @@ class SamplesheetManager:
             log.warning("SharePoint fetch failed for %s: %s", target_name, exc)
             return None
 
-    def fetch_local(self, run_hash: str) -> Optional[Path]:
+    def fetch_local(self, run_hash: str) -> Path | None:
         """Return the local raw TSV path if it exists."""
         path = self.settings.samplesheets_raw_dir / f"rsgsheet_{run_hash}.tsv"
         return path if path.exists() else None
@@ -154,9 +151,7 @@ class SamplesheetManager:
                         f"in {users_conf}."
                     )
         else:
-            log.warning(
-                "users.conf not found at %s — skipping user validation.", users_conf
-            )
+            log.warning("users.conf not found at %s — skipping user validation.", users_conf)
 
         # Check for duplicate barcode combinations
         seen: dict[tuple[str, str], list[str]] = {}
@@ -175,7 +170,7 @@ class SamplesheetManager:
 
     # -------------------------------------------------------------- private
 
-    def _fetch_raw(self, run_hash: str) -> Optional[Path]:
+    def _fetch_raw(self, run_hash: str) -> Path | None:
         """Try SharePoint first, fall back to local file."""
         path = self.fetch_from_sharepoint(run_hash)
         if path is None:
@@ -235,9 +230,7 @@ class SamplesheetManager:
         for sample_id, barcode_well in rows:
             project = _project_from_sample(sample_id)
             i7, i5 = indices.get(barcode_well, ("", ""))
-            buf.write(
-                f"{sample_id},{sample_id},,{barcode_well},,{i7},,{i5},{project}\n"
-            )
+            buf.write(f"{sample_id},{sample_id},,{barcode_well},,{i7},,{i5},{project}\n")
         out_path.write_text(buf.getvalue())
 
 

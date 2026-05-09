@@ -9,7 +9,6 @@ import pytest
 
 from autobcl2fastq.watcher import BiomicsEmailWatcher, _extract_url
 
-
 # ---------------------------------------------------------------------------
 # _extract_url
 # ---------------------------------------------------------------------------
@@ -102,7 +101,9 @@ def test_poll_returns_none_when_body_has_no_url(tmp_settings):
 def test_poll_raises_when_password_missing(tmp_settings):
     with patch(
         "autobcl2fastq.watcher.get_mail_password",
-        side_effect=RuntimeError("Mail password not found in the shared RSG secrets store. Run 'rsgutils setup' to store it."),
+        side_effect=RuntimeError(
+            "Mail password not found in the shared RSG secrets store. Run 'rsgutils setup' to store it."
+        ),
     ):
         watcher = BiomicsEmailWatcher(tmp_settings)
         with pytest.raises(RuntimeError, match="rsgutils setup"):

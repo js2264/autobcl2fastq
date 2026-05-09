@@ -14,10 +14,9 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
@@ -43,8 +42,8 @@ class RunInfo:
     url: str
     run_name: str  # e.g. 230516_VH00537_116_AACLHW3M5
     run_date: str  # e.g. 230516
-    seq_id: str    # e.g. VH00537
-    run_nb: str    # e.g. 116
+    seq_id: str  # e.g. VH00537
+    run_nb: str  # e.g. 116
     run_hash: str  # e.g. AACLHW3M5
 
     @property
@@ -53,7 +52,7 @@ class RunInfo:
         return f"{self.run_date}_{self.run_nb}_{self.run_hash}"
 
     @classmethod
-    def from_url(cls, url: str) -> "RunInfo":
+    def from_url(cls, url: str) -> RunInfo:
         """Parse a Biomics download URL into a RunInfo.
 
         Expected URL pattern::
@@ -111,7 +110,7 @@ class DemuxPipeline:
         self,
         url: str,
         *,
-        samplesheet_path: Optional[Path] = None,
+        samplesheet_path: Path | None = None,
         dry_run: bool = False,
     ) -> str:
         """Full pipeline. Returns the Slurm job ID (or ``"dry-run"``).
