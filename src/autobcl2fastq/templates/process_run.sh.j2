@@ -1,0 +1,168 @@
+#!/bin/bash
+#SBATCH --job-name=bcl2fastq_{{ run.run_hash }}
+#SBATCH --partition={{ hpc.partition }}
+{%- if hpc.qos %}
+#SBATCH --qos={{ hpc.qos }}
+{%- endif %}
+#SBATCH --cpus-per-task={{ hpc.cpus_per_task }}
+#SBATCH --mem={{ hpc.mem }}
+#SBATCH --output={{ log_dir }}/{{ run.run_id }}_%j.out
+#SBATCH --error={{ log_dir }}/{{ run.run_id }}_%j.err
+
+set -euo pipefail
+
+# ===================================================================
+# autobcl2fastq job: {{ run.run_id }}
+#   run_name          = {{ run.run_name }}
+#   run_hash          = {{ run.run_hash }}
+#   autobcl2fastq     = {{ autobcl2fastq_version }}
+#   submitted_at      = {{ submitted_at }}
+# ===================================================================
+
+RUN="{{ run.run_name }}"
+RUN_ID="{{ run.run_id }}"
+RUN_DATE="{{ run.run_date }}"
+RUN_NB="{{ run.run_nb }}"
+RUN_HASH="{{ run.run_hash }}"
+WORKING_DIR="{{ working_dir }}"
+SSH_HOSTNAME="{{ ssh_hostname }}"
+DESTINATION="{{ destination }}"
+EMAIL="{{ email }}"
+SAMPLESHEET="{{ samplesheet_path }}"
+BASE_DIR="{{ resources_dir }}"
+THREADS="{{ hpc.threads }}"
+
+log() { echo "$(date '+%y-%m-%d %H:%M:%S') [autobcl2fastq] $*"; }
+
+cleanup_failure() {
+    local rc=$?
+    log "FAILED (rc=${rc}); cleaning up."
+    rm -f "${WORKING_DIR}/PROCESSING"
+    exit "${rc}"
+}
+trap cleanup_failure ERR
+
+# -------------------------------------------------------------------
+# 0. Load HPC environment modules
+# -------------------------------------------------------------------
+module purge
+{%- for mod in hpc.modules %}
+module load {{ mod }}
+{%- endfor %}
+
+# -------------------------------------------------------------------
+# 1. Run bcl2fastq
+# -------------------------------------------------------------------
+log "Running bcl2fastq for run ${RUN_ID}"
+mkdir -p "${WORKING_DIR}/fastq/${RUN_ID}/"
+bcl2fastq \
+    --no-lane-splitting \
+    -R "${WORKING_DIR}/runs/${RUN}/" \
+    -o "${WORKING_DIR}/fastq/${RUN_ID}/" \
+    --sample-sheet "${SAMPLESHEET}" \
+    --loading-threads 6 \
+    --processing-threads 6 \
+    --writing-threads 6
+cp "${SAMPLESHEET}" "${WORKING_DIR}/fastq/${RUN_ID}/$(basename "${SAMPLESHEET}")"
+
+# -------------------------------------------------------------------
+# 2. Rename FASTQ files to NextSeq convention (*_nxq_R{1,2}.fq.gz)
+# -------------------------------------------------------------------
+log "Fixing fastq names"
+while IFS= read -r -d '' FILE; do
+    newfile=$(echo "${FILE}" \
+        | sed -e 's,_001\.fastq\.gz,.fq.gz,' \
+              -e 's,_S[0-9]\{1,2\}_R,_nxq_R,')
+    [[ "${FILE}" != "${newfile}" ]] && mv "${FILE}" "${newfile}"
+done < <(find "${WORKING_DIR}/fastq/${RUN_ID}/" -iname "*.fastq.gz" -print0)
+
+# -------------------------------------------------------------------
+# 3. Run FastQC (R1 reads only)
+# -------------------------------------------------------------------
+log "Running FastQC"
+mkdir -p "${WORKING_DIR}/fastqc/${RUN_ID}"
+fastqc \
+    --outdir "${WORKING_DIR}/fastqc/${RUN_ID}" \
+    --nogroup \
+    --noextract \
+    --threads "${THREADS}" \
+    --adapters "${BASE_DIR}/adapters.txt" \
+    "${WORKING_DIR}/fastq/${RUN_ID}"/*/*_R1.fq.gz 1>&2
+
+# -------------------------------------------------------------------
+# 4. Run fastq_screen (contamination check)
+# -------------------------------------------------------------------
+log "Running fastq_screen"
+mkdir -p "${WORKING_DIR}/fastqscreen/${RUN_ID}"
+fastq_screen \
+    --outdir "${WORKING_DIR}/fastqscreen/${RUN_ID}" \
+    --conf "${BASE_DIR}/fastq_screen.conf" \
+    --threads "${THREADS}" \
+    --force \
+    "${WORKING_DIR}/fastq/${RUN_ID}"/*/*_R1.fq.gz \
+    "${WORKING_DIR}/fastq/${RUN_ID}"/*_R1.fq.gz 2>/dev/null || true
+
+# -------------------------------------------------------------------
+# 5. Run MultiQC (aggregates bcl2fastq + FastQC + fastq_screen)
+# -------------------------------------------------------------------
+log "Running MultiQC"
+mkdir -p "${WORKING_DIR}/multiqc/${RUN_ID}"
+multiqc \
+    --title "${RUN_ID}" \
+    --outdir "${WORKING_DIR}/multiqc/${RUN_ID}" \
+    --force \
+    --verbose \
+    --module bcl2fastq \
+    --module fastq_screen \
+    --module fastqc \
+    "${WORKING_DIR}/fastq/${RUN_ID}" \
+    "${WORKING_DIR}/fastqc/${RUN_ID}" \
+    "${WORKING_DIR}/fastqscreen/${RUN_ID}" 1>&2
+
+# -------------------------------------------------------------------
+# 6. Sync FASTQ reads to sftpcampus
+# -------------------------------------------------------------------
+log "Exporting FASTQ reads to ${SSH_HOSTNAME}:${DESTINATION}/run_${RUN_ID}/"
+rsync --verbose --recursive \
+    "${WORKING_DIR}/fastq/${RUN_ID}/" \
+    "${SSH_HOSTNAME}:${DESTINATION}/run_${RUN_ID}/" 1>&2
+
+# -------------------------------------------------------------------
+# 7. Sync MultiQC report to sftpcampus
+# -------------------------------------------------------------------
+MULTIQC_REPORT="${WORKING_DIR}/multiqc/${RUN_ID}/${RUN_ID}_multiqc_report.html"
+if [[ -f "${MULTIQC_REPORT}" ]]; then
+    rsync --verbose \
+        "${MULTIQC_REPORT}" \
+        "${SSH_HOSTNAME}:${DESTINATION}/run_${RUN_ID}/MultiQC_${RUN_ID}.html" 1>&2
+else
+    log "WARNING: MultiQC report not found at ${MULTIQC_REPORT}"
+fi
+
+# -------------------------------------------------------------------
+# 8. Set permissions and mark run as done
+# -------------------------------------------------------------------
+ssh "${SSH_HOSTNAME}" "mkdir -p ${DESTINATION}/run_${RUN_ID}"
+ssh "${SSH_HOSTNAME}" "touch ${DESTINATION}/run_${RUN_ID}/DONE"
+ssh "${SSH_HOSTNAME}" "chmod -R u=rwX,g=rwX,o=rX ${DESTINATION}/run_${RUN_ID}"
+
+# -------------------------------------------------------------------
+# 9. Send completion notification
+# -------------------------------------------------------------------
+log "Sending completion notification to ${EMAIL}"
+{
+    echo "Run ${RUN_ID} demultiplexed successfully."
+    echo ""
+    echo "Files stored at: ${SSH_HOSTNAME}:${DESTINATION}/run_${RUN_ID}/"
+    echo "Slurm job: ${SLURM_JOB_ID:-unknown}"
+} | mailx \
+    -s "[CLUSTER INFO] Finished processing run ${RUN_ID} with autobcl2fastq" \
+    -a "${SAMPLESHEET}" \
+    $([ -f "${MULTIQC_REPORT}" ] && echo "-a ${MULTIQC_REPORT}") \
+    "${EMAIL}"
+
+# -------------------------------------------------------------------
+# 10. Cleanup
+# -------------------------------------------------------------------
+rm -f "${WORKING_DIR}/PROCESSING"
+log "Job ${RUN_ID} completed successfully."

@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "autobcl2fastq"
+version = "0.1.0"
+description = "Automated BCL demultiplexing pipeline for Illumina NextSeq runs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "rsgutils @ git+https://github.com/js2264/rsgutils.git",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+    "click>=8.0",
+    "rich>=13.0",
+    "rich-click>=1.7",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+autobcl2fastq = "autobcl2fastq.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autobcl2fastq"]
+
+[tool.hatch.metadata]
+"allow-direct-references" = true
+
+# Include root-level data files in the wheel under autobcl2fastq/data/
+[tool.hatch.build.targets.wheel.force-include]
+"adapters.txt"     = "autobcl2fastq/data/adapters.txt"
+"fastq_screen.conf" = "autobcl2fastq/data/fastq_screen.conf"
+"indices.txt"      = "autobcl2fastq/data/indices.txt"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",
+    "B008",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=autobcl2fastq --cov-report=term-missing"
+markers = [
+    "hpc: requires the maestro-submit HPC cluster (auto-skipped elsewhere)",
+]
+
+[tool.coverage.run]
+source = ["autobcl2fastq"]
+omit = [
+    "*/tests/*",
+    "src/autobcl2fastq/cli.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 60
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

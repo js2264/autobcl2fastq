@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, devel]
+  pull_request:
+    branches: [main, devel]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      - name: Install ruff
+        run: uv pip install --system ruff
+      - name: ruff check
+        run: ruff check src/ tests/
+      - name: ruff format check
+        run: ruff format --check src/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        env:
+          RSG_PACKAGES_TOKEN: ${{ secrets.RSG_PACKAGES_TOKEN }}
+        run: |
+          uv pip install --system \
+            "git+https://${RSG_PACKAGES_TOKEN}@github.com/js2264/rsgutils.git" \
+            ".[dev]"
+
+      - name: Run tests
+        run: pytest --cov=autobcl2fastq --cov-report=term-missing --cov-fail-under=60
