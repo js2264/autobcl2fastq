@@ -1116,7 +1116,7 @@ wheels = [
 [[package]]
 name = "rsgutils"
 version = "0.1.0"
-source = { git = "https://github.com/js2264/rsgutils.git#1ab99cb8f71324c97baf8f9b91631128b2932ad0" }
+source = { git = "https://github.com/js2264/rsgutils.git#ec2ed80413fbcba318c072382ca99d1134b04a64" }
 dependencies = [
     { name = "click" },
     { name = "cryptography" },

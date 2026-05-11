@@ -45,55 +45,6 @@ def cli(ctx: click.Context, config: Path | None) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Diagnostics commands
-# ---------------------------------------------------------------------------
-
-
-@cli.command("check-mail")
-@click.pass_context
-def check_mail(ctx: click.Context) -> None:
-    """Verify IMAP and SMTP connectivity using the shared RSG credentials.
-
-    Credentials are read from the shared RSG secrets store. If you have not
-    stored them yet, run [bold cyan]rsgutils setup[/bold cyan] first.
-    """
-    import imaplib
-    import smtplib
-    import ssl
-
-    from rsgutils.secrets import get_mail_password
-
-    settings: Settings = ctx.obj["settings"]
-    try:
-        password = get_mail_password(settings)
-    except RuntimeError as exc:
-        console.print(f"[red]Credentials not found:[/red] {exc}")
-        sys.exit(1)
-
-    m = settings.mail
-    ssl_ctx = ssl.create_default_context()
-
-    console.print(f"Testing IMAP {m.imap_host}:{m.imap_port} ...", end=" ")
-    try:
-        with imaplib.IMAP4_SSL(m.imap_host, m.imap_port, ssl_context=ssl_ctx) as imap:
-            imap.login(m.address, password)
-            imap.select("INBOX")
-        console.print("[green]OK[/green]")
-    except Exception as exc:
-        console.print(f"[red]FAILED: {exc}[/red]")
-
-    console.print(f"Testing SMTP {m.smtp_host}:{m.smtp_port} ...", end=" ")
-    try:
-        with smtplib.SMTP(m.smtp_host, m.smtp_port) as smtp:
-            smtp.ehlo()
-            smtp.starttls(context=ssl_ctx)
-            smtp.login(m.address, password)
-        console.print("[green]OK[/green]")
-    except Exception as exc:
-        console.print(f"[red]FAILED: {exc}[/red]")
-
-
-# ---------------------------------------------------------------------------
 # Run commands
 # ---------------------------------------------------------------------------
 
