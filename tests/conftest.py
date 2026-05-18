@@ -42,7 +42,7 @@ def indices_txt(tmp_path: Path) -> Path:
 @pytest.fixture()
 def raw_tsv(tmp_path: Path) -> Path:
     """Create a minimal raw RSG samplesheet TSV for testing."""
-    content = "sampleA1\tA1\nsampleA2\tA2\n"
+    content = "JS1\tA1\nJS2\tA2\n"
     p = tmp_path / "rsgsheet_AATEST123.tsv"
     p.write_text(content)
     return p

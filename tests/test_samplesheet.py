@@ -77,12 +77,12 @@ def test_run_info_invalid_url():
 
 def test_load_raw_tsv(raw_tsv: Path):
     rows = SamplesheetManager._load_raw_tsv(raw_tsv)
-    assert rows == [("sampleA1", "A1"), ("sampleA2", "A2")]
+    assert rows == [("JS1", "A1"), ("JS2", "A2")]
 
 
 def test_load_raw_tsv_skips_blank(tmp_path: Path):
     p = tmp_path / "sheet.tsv"
-    p.write_text("sampleA1\tA1\n\t\nsampleA2\tA2\n")
+    p.write_text("JS1\tA1\n\t\nJS2\tA2\n")
     rows = SamplesheetManager._load_raw_tsv(p)
     assert len(rows) == 2
 
@@ -113,7 +113,7 @@ def test_validate_rows_duplicate_barcode(tmp_settings, indices_txt: Path):
     manager = _make_manager(tmp_settings, indices_txt)
     indices = manager._load_indices()
     # Two samples pointing to the same barcode well → same i7/i5 → duplicate
-    rows = [("sampleA1", "A1"), ("sampleA1b", "A1")]
+    rows = [("JS1", "A1"), ("JS2", "A1")]
     errors = manager.validate_rows(rows, indices, "AATEST123")
     assert any("Duplicate" in e for e in errors)
 
@@ -135,7 +135,7 @@ def test_fix_writes_illumina_csv(tmp_settings, indices_txt: Path, raw_tsv: Path)
     content = csv_path.read_text()
     assert "[Header]" in content
     assert "[Data]" in content
-    assert "sampleA1" in content
+    assert "JS1" in content
     assert "ATCACG" in content  # i7 for A1
 
 
