@@ -71,7 +71,7 @@ log "Fixing fastq names"
 while IFS= read -r -d '' FILE; do
     newfile=$(echo "${FILE}" \
         | sed -e 's,_001\.fastq\.gz,.fq.gz,' \
-              -e 's,_S[0-9]\{1,2\}_R,_nxq_R,')
+              -e 's/_S[0-9]\{1,2\}_R/_nxq_R/')
     [[ "${FILE}" != "${newfile}" ]] && mv "${FILE}" "${newfile}"
 done < <(find "${WORKING_DIR}/fastq/${RUN_ID}/" -iname "*.fastq.gz" -print0)
 

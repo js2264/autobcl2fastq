@@ -1,0 +1,20 @@
+[Unit]
+Description=autobcl2fastq email-driven BCL demultiplexing daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# uv runs autobcl2fastq from the project's .venv (uv sync must have been run first).
+# Adjust WorkingDirectory to wherever the repo was cloned.
+WorkingDirectory=/pasteur/appa/homes/jaseriza/repos/autobcl2fastq
+ExecStart=%h/.local/bin/uv run autobcl2fastq daemon start
+Restart=always
+RestartSec=15
+# Singleton lock so two instances can't race on the mailbox / DB.
+ExecStartPre=/usr/bin/env mkdir -p %h/.local/state/autobcl2fastq
+StandardOutput=append:%h/.local/state/autobcl2fastq/daemon.log
+StandardError=append:%h/.local/state/autobcl2fastq/daemon.log
+
+[Install]
+WantedBy=default.target

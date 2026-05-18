@@ -49,6 +49,67 @@ def cli(ctx: click.Context, config: Path | None) -> None:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Daemon commands
+# ---------------------------------------------------------------------------
+
+
+@cli.group("daemon")
+def daemon_group() -> None:
+    """Manage the autobcl2fastq background daemon."""
+
+
+@daemon_group.command("start")
+@click.pass_context
+def daemon_start(ctx: click.Context) -> None:
+    """Start the daemon in the foreground (used by the systemd service)."""
+    from .daemon import Daemon
+
+    settings: Settings = ctx.obj["settings"]
+    Daemon(settings).run_forever()
+
+
+@daemon_group.command("run")
+@click.pass_context
+def daemon_run(ctx: click.Context) -> None:  # alias for start
+    """Alias for [bold]daemon start[/bold]."""
+    from .daemon import Daemon
+
+    settings: Settings = ctx.obj["settings"]
+    Daemon(settings).run_forever()
+
+
+@daemon_group.command("stop")
+def daemon_stop() -> None:
+    """Stop the systemd user service."""
+    import subprocess
+
+    console.print("[yellow]Stopping autobcl2fastq.service...[/yellow]")
+    subprocess.run(["systemctl", "--user", "stop", "autobcl2fastq.service"], check=False)
+
+
+@daemon_group.command("restart")
+def daemon_restart() -> None:
+    """Restart the systemd user service."""
+    import subprocess
+
+    console.print("[yellow]Restarting autobcl2fastq.service...[/yellow]")
+    subprocess.run(["systemctl", "--user", "restart", "autobcl2fastq.service"], check=False)
+
+
+@daemon_group.command("status")
+def daemon_status() -> None:
+    """Show the status of the systemd user service."""
+    import subprocess
+
+    subprocess.run(["systemctl", "--user", "status", "autobcl2fastq.service"], check=False)
+
+
+# ---------------------------------------------------------------------------
+# Run commands
+# ---------------------------------------------------------------------------
+
+
 @cli.command("run")
 @click.option("--url", required=True, help="Biomics download URL.")
 @click.option(
@@ -102,138 +163,14 @@ def poll_once(ctx: click.Context, verbose: bool) -> None:
 
     Safe to call from a cron job or systemd timer.
     """
+    from .daemon import Daemon
+
     settings: Settings = ctx.obj["settings"]
-    _do_poll(settings, verbose=verbose)
-
-
-def _do_poll(settings: Settings, verbose: bool = False) -> None:
-    """Core polling logic shared by poll-once and the daemon."""
-    from .notifier import Notifier
-    from .pipeline import DemuxPipeline, RunInfo
-    from .state import StateDB
-    from .watcher import BiomicsEmailWatcher
-
-    notifier = Notifier(settings)
-
     if verbose:
         console.print("[cyan]Starting poll iteration...[/cyan]")
-
-    # 1. Check for new Biomics emails
+    Daemon(settings).run_once()
     if verbose:
-        console.print("[cyan]  Checking for new Biomics emails...[/cyan]")
-    watcher = BiomicsEmailWatcher(settings)
-    try:
-        run_email = watcher.poll()
-    except Exception as exc:
-        log.error("IMAP poll failed: %s", exc)
-        if verbose:
-            console.print(f"[red]  IMAP poll failed: {exc}[/red]")
-        run_email = None
-
-    if run_email:
-        run_info = RunInfo.from_url(run_email.url)
-        if verbose:
-            console.print(f"[green]  Found new run: {run_info.run_id}[/green]")
-        pipeline = DemuxPipeline(settings)
-        try:
-            job_id = pipeline.run(run_email.url)
-            notifier.notify_start(
-                run_info,
-                settings.samplesheets_dir
-                / f"SampleSheet_{run_info.run_date}_{run_info.run_nb}_{run_info.run_hash}.csv",
-            )
-            log.info("Submitted run %s as Slurm job %s", run_info.run_id, job_id)
-            if verbose:
-                console.print(f"[green]  Submitted as Slurm job {job_id}[/green]")
-        except Exception as exc:
-            log.error("Failed to process run %s: %s", run_email.url, exc)
-            notifier.notify_error(str(exc), run_name=run_info.run_name)
-            if verbose:
-                console.print(f"[red]  Failed to process run: {exc}[/red]")
-    else:
-        if verbose:
-            console.print("[cyan]  No new Biomics emails found.[/cyan]")
-
-    # 2. Poll sacct for active runs
-    if verbose:
-        console.print("[cyan]  Checking for active runs...[/cyan]")
-    db = StateDB(settings.db_path)
-    active = db.get_active_runs()
-    if not active:
-        if verbose:
-            console.print("[cyan]  No active runs in database.[/cyan]")
-        return
-
-    if verbose:
-        console.print(f"[cyan]  Found {len(active)} active run(s), querying sacct...[/cyan]")
-
-    from rsgutils.slurm import SacctClient
-
-    sacct = SacctClient(settings.slurm.sacct_bin)
-    job_ids = [r.slurm_jobid for r in active if r.slurm_jobid]
-    if not job_ids:
-        if verbose:
-            console.print("[cyan]  No Slurm job IDs to query.[/cyan]")
-        return
-
-    try:
-        statuses = sacct.query(job_ids)
-    except Exception as exc:
-        log.error("sacct query failed: %s", exc)
-        if verbose:
-            console.print(f"[red]  sacct query failed: {exc}[/red]")
-        return
-
-    terminal_count = 0
-    for record in active:
-        if not record.slurm_jobid:
-            continue
-        status = statuses.get(record.slurm_jobid)
-        if status is None or not status.is_terminal:
-            continue
-
-        terminal_count += 1
-        new_state = "completed" if status.is_success else "failed"
-        db.update_run(
-            record.run_id,
-            state=new_state,
-            sacct_state=status.state,
-            exit_code=status.exit_code,
-            finished_at=_now(),
-        )
-        run_info = RunInfo.from_url(record.url)
-
-        # Locate MultiQC report (best effort)
-        run_id = record.run_id
-        multiqc = Path(settings.working_dir) / "multiqc" / run_id / f"{run_id}_multiqc_report.html"
-        ss_path = Path(record.samplesheet_path) if record.samplesheet_path else None
-
-        notifier.notify_result(
-            run_info,
-            ok=status.is_success,
-            slurm_jobid=record.slurm_jobid,
-            sacct_state=status.state,
-            exit_code=status.exit_code,
-            samplesheet_path=ss_path,
-            multiqc_report=multiqc if multiqc.exists() else None,
-        )
-        db.update_run(record.run_id, state="notified", notified_at=_now())
-        
-        if verbose:
-            color = "green" if status.is_success else "red"
-            console.print(
-                f"[{color}]  Run {record.run_id} finished ({status.state}, "
-                f"exit code {status.exit_code})[/{color}]"
-            )
-
-    if verbose:
-        console.print(f"[cyan]Poll complete: {terminal_count} run(s) finished.[/cyan]")
-
-
-def _now() -> str:
-    from datetime import datetime
-
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        console.print("[cyan]Poll complete.[/cyan]")
 
 
 # ---------------------------------------------------------------------------
