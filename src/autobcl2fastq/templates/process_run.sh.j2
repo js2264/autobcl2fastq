@@ -36,8 +36,7 @@ log() { echo "$(date '+%y-%m-%d %H:%M:%S') [autobcl2fastq] $*"; }
 
 cleanup_failure() {
     local rc=$?
-    log "FAILED (rc=${rc}); cleaning up."
-    rm -f "${WORKING_DIR}/PROCESSING"
+    log "FAILED (rc=${rc})."
     exit "${rc}"
 }
 trap cleanup_failure ERR
@@ -164,5 +163,4 @@ log "Sending completion notification to ${EMAIL}"
 # -------------------------------------------------------------------
 # 10. Cleanup
 # -------------------------------------------------------------------
-rm -f "${WORKING_DIR}/PROCESSING"
 log "Job ${RUN_ID} completed successfully."

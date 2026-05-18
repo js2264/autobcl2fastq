@@ -95,17 +95,18 @@ def run_cmd(
 
 
 @cli.command("poll-once")
+@click.option("--verbose", is_flag=True, help="Show detailed progress information.")
 @click.pass_context
-def poll_once(ctx: click.Context) -> None:
+def poll_once(ctx: click.Context, verbose: bool) -> None:
     """Single daemon iteration: check inbox + poll sacct for active runs.
 
     Safe to call from a cron job or systemd timer.
     """
     settings: Settings = ctx.obj["settings"]
-    _do_poll(settings)
+    _do_poll(settings, verbose=verbose)
 
 
-def _do_poll(settings: Settings) -> None:
+def _do_poll(settings: Settings, verbose: bool = False) -> None:
     """Core polling logic shared by poll-once and the daemon."""
     from .notifier import Notifier
     from .pipeline import DemuxPipeline, RunInfo
@@ -114,16 +115,25 @@ def _do_poll(settings: Settings) -> None:
 
     notifier = Notifier(settings)
 
+    if verbose:
+        console.print("[cyan]Starting poll iteration...[/cyan]")
+
     # 1. Check for new Biomics emails
+    if verbose:
+        console.print("[cyan]  Checking for new Biomics emails...[/cyan]")
     watcher = BiomicsEmailWatcher(settings)
     try:
         run_email = watcher.poll()
     except Exception as exc:
         log.error("IMAP poll failed: %s", exc)
+        if verbose:
+            console.print(f"[red]  IMAP poll failed: {exc}[/red]")
         run_email = None
 
     if run_email:
         run_info = RunInfo.from_url(run_email.url)
+        if verbose:
+            console.print(f"[green]  Found new run: {run_info.run_id}[/green]")
         pipeline = DemuxPipeline(settings)
         try:
             job_id = pipeline.run(run_email.url)
@@ -133,29 +143,48 @@ def _do_poll(settings: Settings) -> None:
                 / f"SampleSheet_{run_info.run_date}_{run_info.run_nb}_{run_info.run_hash}.csv",
             )
             log.info("Submitted run %s as Slurm job %s", run_info.run_id, job_id)
+            if verbose:
+                console.print(f"[green]  Submitted as Slurm job {job_id}[/green]")
         except Exception as exc:
             log.error("Failed to process run %s: %s", run_email.url, exc)
             notifier.notify_error(str(exc), run_name=run_info.run_name)
+            if verbose:
+                console.print(f"[red]  Failed to process run: {exc}[/red]")
+    else:
+        if verbose:
+            console.print("[cyan]  No new Biomics emails found.[/cyan]")
 
     # 2. Poll sacct for active runs
+    if verbose:
+        console.print("[cyan]  Checking for active runs...[/cyan]")
     db = StateDB(settings.db_path)
     active = db.get_active_runs()
     if not active:
+        if verbose:
+            console.print("[cyan]  No active runs in database.[/cyan]")
         return
+
+    if verbose:
+        console.print(f"[cyan]  Found {len(active)} active run(s), querying sacct...[/cyan]")
 
     from rsgutils.slurm import SacctClient
 
     sacct = SacctClient(settings.slurm.sacct_bin)
     job_ids = [r.slurm_jobid for r in active if r.slurm_jobid]
     if not job_ids:
+        if verbose:
+            console.print("[cyan]  No Slurm job IDs to query.[/cyan]")
         return
 
     try:
         statuses = sacct.query(job_ids)
     except Exception as exc:
         log.error("sacct query failed: %s", exc)
+        if verbose:
+            console.print(f"[red]  sacct query failed: {exc}[/red]")
         return
 
+    terminal_count = 0
     for record in active:
         if not record.slurm_jobid:
             continue
@@ -163,6 +192,7 @@ def _do_poll(settings: Settings) -> None:
         if status is None or not status.is_terminal:
             continue
 
+        terminal_count += 1
         new_state = "completed" if status.is_success else "failed"
         db.update_run(
             record.run_id,
@@ -188,6 +218,16 @@ def _do_poll(settings: Settings) -> None:
             multiqc_report=multiqc if multiqc.exists() else None,
         )
         db.update_run(record.run_id, state="notified", notified_at=_now())
+        
+        if verbose:
+            color = "green" if status.is_success else "red"
+            console.print(
+                f"[{color}]  Run {record.run_id} finished ({status.state}, "
+                f"exit code {status.exit_code})[/{color}]"
+            )
+
+    if verbose:
+        console.print(f"[cyan]Poll complete: {terminal_count} run(s) finished.[/cyan]")
 
 
 def _now() -> str:

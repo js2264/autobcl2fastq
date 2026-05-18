@@ -131,10 +131,7 @@ class Notifier:
     ) -> None:
         try:
             client = self._smtp_client()
-            attach_tuples = None
-            if attachments:
-                attach_tuples = [(p.name, p.read_bytes()) for p in attachments if p.exists()]
-            client.send(to=to, subject=subject, body=body, attachments=attach_tuples)
+            client.send(to=to, subject=subject, body=body, attachments=attachments or None)
             log.info("Notification sent: %s → %s", subject, to)
         except Exception as exc:
             log.error("Failed to send notification %r: %s", subject, exc)

@@ -126,22 +126,4 @@ def test_run_dry_run(tmp_settings, tmp_path: Path):
     mock_submit.assert_not_called()
 
 
-def test_run_clears_processing_flag_on_error(tmp_settings, tmp_path: Path):
-    """If the pipeline fails before submission, the PROCESSING flag must be removed."""
-    ss = tmp_path / "ss.csv"
-    ss.write_text("")
-    tmp_settings.resources_dir = tmp_path
 
-    url = "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AATEST123__ts.tar"
-
-    with (
-        patch.object(DemuxPipeline, "_download_bcl", side_effect=RuntimeError("curl failed")),
-        patch("autobcl2fastq.pipeline.SamplesheetManager") as MockMgr,
-    ):
-        MockMgr.return_value.fetch_and_fix.return_value = ss
-        pipeline = DemuxPipeline(tmp_settings)
-        with pytest.raises(RuntimeError, match="curl failed"):
-            pipeline.run(url, samplesheet_path=ss)
-
-    flag = tmp_path / "work" / "PROCESSING"
-    assert not flag.exists()

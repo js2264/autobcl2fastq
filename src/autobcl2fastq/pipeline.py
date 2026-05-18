@@ -139,53 +139,36 @@ class DemuxPipeline:
             samplesheet_path = manager.fetch_and_fix(run_info)
         log.info("Using samplesheet: %s", samplesheet_path)
 
-        # ---- PROCESSING lock -----------------------------------------------
-        processing_flag = Path(settings.working_dir) / "PROCESSING"
-        if processing_flag.exists():
-            existing = processing_flag.read_text().strip()
-            raise RuntimeError(
-                f"Another run is currently being processed ({existing}). "
-                "Remove PROCESSING flag manually if this is stale."
+        # ---- download BCL data -----------------------------------------
+        self._download_bcl(run_info)
+
+        # ---- render sbatch script --------------------------------------
+        sbatch_path = self._render(run_info, samplesheet_path)
+
+        # ---- submit to Slurm -------------------------------------------
+        if dry_run:
+            log.info("[dry-run] Script rendered at %s — not submitting.", sbatch_path)
+            return "dry-run"
+
+        job_id = self._submit(sbatch_path)
+        log.info("Submitted Slurm job %s for run %s", job_id, run_info.run_id)
+
+        # ---- persist to state DB ---------------------------------------
+        db = StateDB(settings.db_path)
+        db.insert_run(
+            RunRecord(
+                run_id=run_info.run_id,
+                url=url,
+                run_name=run_info.run_name,
+                run_hash=run_info.run_hash,
+                samplesheet_path=str(samplesheet_path),
+                slurm_jobid=job_id,
+                sbatch_path=str(sbatch_path),
+                state="submitted",
+                autobcl2fastq_version=PACKAGE_VERSION,
             )
-        processing_flag.write_text(run_info.run_name)
-
-        try:
-            # ---- download BCL data -----------------------------------------
-            self._download_bcl(run_info)
-
-            # ---- render sbatch script --------------------------------------
-            sbatch_path = self._render(run_info, samplesheet_path)
-
-            # ---- submit to Slurm -------------------------------------------
-            if dry_run:
-                log.info("[dry-run] Script rendered at %s — not submitting.", sbatch_path)
-                return "dry-run"
-
-            job_id = self._submit(sbatch_path)
-            log.info("Submitted Slurm job %s for run %s", job_id, run_info.run_id)
-
-            # ---- persist to state DB ---------------------------------------
-            db = StateDB(settings.db_path)
-            db.insert_run(
-                RunRecord(
-                    run_id=run_info.run_id,
-                    url=url,
-                    run_name=run_info.run_name,
-                    run_hash=run_info.run_hash,
-                    samplesheet_path=str(samplesheet_path),
-                    slurm_jobid=job_id,
-                    sbatch_path=str(sbatch_path),
-                    state="submitted",
-                    autobcl2fastq_version=PACKAGE_VERSION,
-                )
-            )
-            return job_id
-
-        except Exception:
-            # Only remove the flag here when we failed *before* sbatch ran
-            # (once the compute job starts, it owns the flag).
-            processing_flag.unlink(missing_ok=True)
-            raise
+        )
+        return job_id
 
     # --------------------------------------------------------------- private
 
