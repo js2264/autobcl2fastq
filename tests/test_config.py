@@ -20,7 +20,7 @@ def test_hpc_defaults():
     assert hpc.cpus_per_task == 20
     assert hpc.mem == "48G"
     assert "bcl2fastq" in hpc.modules[0]
-    assert hpc.threads == 12
+    assert hpc.threads == 18
 
 
 def test_biomics_defaults():
