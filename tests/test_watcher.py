@@ -58,8 +58,8 @@ def test_poll_returns_run_info(tmp_settings):
         watcher = BiomicsEmailWatcher(tmp_settings)
         result = watcher.poll()
 
-    assert result is not None
-    assert result.url == url
+    assert len(result) == 1
+    assert result[0].url == url
     mock_client.mark_seen.assert_called_once_with("42")
 
 
@@ -74,7 +74,7 @@ def test_poll_returns_none_when_no_emails(tmp_settings):
         watcher = BiomicsEmailWatcher(tmp_settings)
         result = watcher.poll()
 
-    assert result is None
+    assert result == []
 
 
 def test_poll_returns_none_when_body_has_no_url(tmp_settings):
@@ -95,7 +95,37 @@ def test_poll_returns_none_when_body_has_no_url(tmp_settings):
         watcher = BiomicsEmailWatcher(tmp_settings)
         result = watcher.poll()
 
-    assert result is None
+    assert result == []
+    mock_client.mark_seen.assert_not_called()
+
+
+def test_poll_returns_all_valid_emails(tmp_settings):
+    """All emails with extractable URLs are returned; unparseable ones are skipped."""
+    url1 = "https://dl.pasteur.fr/fop/XXXX/run1.tar"
+    url2 = "https://dl.pasteur.fr/fop/YYYY/run2.tar"
+    mock_email1 = _make_email_message(url1)
+    mock_email1.uid = "10"
+    mock_email2 = _make_email_message(url2)
+    mock_email2.uid = "11"
+    mock_bad = MagicMock()
+    mock_bad.uid = "12"
+    mock_bad.body = "No URL here."
+
+    mock_client = MagicMock()
+    mock_client.find_emails.return_value = [mock_email1, mock_email2, mock_bad]
+
+    with (
+        patch("autobcl2fastq.watcher.get_mail_password", return_value="secret"),
+        patch("autobcl2fastq.watcher.IMAPClient", return_value=mock_client),
+    ):
+        watcher = BiomicsEmailWatcher(tmp_settings)
+        result = watcher.poll()
+
+    assert len(result) == 2
+    assert result[0].url == url1
+    assert result[1].url == url2
+    # Only the two valid emails are marked seen
+    assert mock_client.mark_seen.call_count == 2
 
 
 def test_poll_raises_when_password_missing(tmp_settings):

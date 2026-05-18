@@ -75,29 +75,30 @@ class Daemon:
         watcher = BiomicsEmailWatcher(self.settings)
 
         try:
-            run_email = watcher.poll()
+            run_emails = watcher.poll()
         except Exception as exc:
             log.error("IMAP poll failed: %s", exc)
             return
 
-        if not run_email:
+        if not run_emails:
             log.debug("No new Biomics email.")
             return
 
-        run_info = RunInfo.from_url(run_email.url)
-        log.info("New Biomics run: %s", run_info.run_id)
         pipeline = DemuxPipeline(self.settings)
-        try:
-            job_id = pipeline.run(run_email.url)
-            ss_path = (
-                self.settings.samplesheets_dir
-                / f"SampleSheet_{run_info.run_date}_{run_info.run_nb}_{run_info.run_hash}.csv"
-            )
-            notifier.notify_start(run_info, ss_path)
-            log.info("Submitted run %s as Slurm job %s", run_info.run_id, job_id)
-        except Exception as exc:
-            log.error("Failed to process run %s: %s", run_email.url, exc)
-            notifier.notify_error(str(exc), run_name=run_info.run_name)
+        for run_email in run_emails:
+            run_info = RunInfo.from_url(run_email.url)
+            log.info("New Biomics run: %s", run_info.run_id)
+            try:
+                job_id = pipeline.run(run_email.url)
+                ss_path = (
+                    self.settings.samplesheets_dir
+                    / f"SampleSheet_{run_info.run_date}_{run_info.run_nb}_{run_info.run_hash}.csv"
+                )
+                notifier.notify_start(run_info, ss_path)
+                log.info("Submitted run %s as Slurm job %s", run_info.run_id, job_id)
+            except Exception as exc:
+                log.error("Failed to process run %s: %s", run_email.url, exc)
+                notifier.notify_error(str(exc), run_name=run_info.run_name)
 
     # ------------------------------------------------------------------
     # Private: sacct
@@ -138,9 +139,7 @@ class Daemon:
                 exit_code=status.exit_code,
                 finished_at=_now(),
             )
-            log.info(
-                "Run %s finished: %s (exit %s)", record.run_id, status.state, status.exit_code
-            )
+            log.info("Run %s finished: %s (exit %s)", record.run_id, status.state, status.exit_code)
 
             run_info = RunInfo.from_url(record.url)
             multiqc = (

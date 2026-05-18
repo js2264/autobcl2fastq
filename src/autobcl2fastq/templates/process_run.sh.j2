@@ -44,6 +44,10 @@ trap cleanup_failure ERR
 # -------------------------------------------------------------------
 # 0. Load HPC environment modules
 # -------------------------------------------------------------------
+# Slurm does not source /etc/profile.d by default — initialise the module
+# system explicitly before calling 'module'.
+source "{{ hpc.modules_init_script }}"
+
 module purge
 {%- for mod in hpc.modules %}
 module load {{ mod }}

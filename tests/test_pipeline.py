@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from autobcl2fastq.pipeline import DemuxPipeline, RunInfo
 
 # ---------------------------------------------------------------------------
@@ -124,6 +122,3 @@ def test_run_dry_run(tmp_settings, tmp_path: Path):
 
     assert result == "dry-run"
     mock_submit.assert_not_called()
-
-
-

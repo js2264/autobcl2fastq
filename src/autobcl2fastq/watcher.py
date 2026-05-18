@@ -36,11 +36,12 @@ class BiomicsEmailWatcher:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    def poll(self) -> BiomicsRunInfo | None:
-        """Return the first unseen Biomics email, or *None* if there is none.
+    def poll(self) -> list[BiomicsRunInfo]:
+        """Return all unseen Biomics emails as a list, or an empty list if there are none.
 
-        Marks the email as seen on the server so subsequent polls don't
-        return the same message.
+        Each email is marked as seen on the server only after its URL has been
+        successfully extracted, so emails that cannot be parsed are left unseen
+        for the next poll.
         """
         settings = self.settings
         try:
@@ -63,31 +64,31 @@ class BiomicsEmailWatcher:
 
         if not emails:
             log.debug("No new Biomics emails found.")
-            return None
+            return []
 
-        if len(emails) > 1:
-            log.warning(
-                "%d unseen Biomics emails found; processing the most recent one.",
-                len(emails),
+        log.info("%d unseen Biomics email(s) found.", len(emails))
+
+        results: list[BiomicsRunInfo] = []
+        for msg in emails:
+            url = _extract_url(msg.body)
+            if url is None:
+                log.warning(
+                    "Biomics email (uid=%s) contained no download URL. Skipping.",
+                    msg.uid,
+                )
+                continue
+            client.mark_seen(msg.uid)
+            log.info("Found Biomics run URL: %s", url)
+            results.append(
+                BiomicsRunInfo(
+                    url=url,
+                    sender=msg.sender,
+                    subject=msg.subject,
+                    received_at=msg.received_at,
+                )
             )
 
-        msg = emails[0]
-        url = _extract_url(msg.body)
-        if url is None:
-            log.warning(
-                "Biomics email (uid=%s) contained no download URL. Skipping.",
-                msg.uid,
-            )
-            return None
-
-        client.mark_seen(msg.uid)
-        log.info("Found Biomics run URL: %s", url)
-        return BiomicsRunInfo(
-            url=url,
-            sender=msg.sender,
-            subject=msg.subject,
-            received_at=msg.received_at,
-        )
+        return results
 
 
 def _extract_url(body: str) -> str | None:

@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from autobcl2fastq.daemon import Daemon
 from autobcl2fastq.watcher import BiomicsRunInfo
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_RUN_URL = (
-    "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AACLHW3M5__ts.tar"
-)
+_RUN_URL = "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AACLHW3M5__ts.tar"
 
 _BIOMICS_RUN_INFO = BiomicsRunInfo(
     url=_RUN_URL,
@@ -40,7 +37,7 @@ def test_poll_inbox_no_email(tmp_settings):
         patch("autobcl2fastq.daemon.DemuxPipeline") as MockPipeline,
         patch("autobcl2fastq.daemon.Notifier"),
     ):
-        MockWatcher.return_value.poll.return_value = None
+        MockWatcher.return_value.poll.return_value = []
         daemon._poll_inbox()
 
     MockPipeline.return_value.run.assert_not_called()
@@ -65,7 +62,7 @@ def test_poll_inbox_with_email_submits_run(tmp_settings):
         patch("autobcl2fastq.daemon.Notifier", return_value=mock_notifier),
         patch("autobcl2fastq.daemon.RunInfo") as MockRunInfo,
     ):
-        MockWatcher.return_value.poll.return_value = _BIOMICS_RUN_INFO
+        MockWatcher.return_value.poll.return_value = [_BIOMICS_RUN_INFO]
         MockRunInfo.from_url.return_value = MagicMock(
             run_id="230516_VH00537_116_AACLHW3M5",
             run_date="230516",
@@ -98,7 +95,7 @@ def test_poll_inbox_pipeline_failure_notifies_error(tmp_settings):
         patch("autobcl2fastq.daemon.Notifier", return_value=mock_notifier),
         patch("autobcl2fastq.daemon.RunInfo") as MockRunInfo,
     ):
-        MockWatcher.return_value.poll.return_value = _BIOMICS_RUN_INFO
+        MockWatcher.return_value.poll.return_value = [_BIOMICS_RUN_INFO]
         MockRunInfo.from_url.return_value = MagicMock(run_name="test_run")
         daemon._poll_inbox()  # must not raise
 
@@ -224,9 +221,9 @@ def test_run_forever_loops(tmp_settings):
         patch.object(daemon, "_poll_inbox", mock_inbox),
         patch.object(daemon, "_poll_slurm", mock_slurm),
         patch("autobcl2fastq.daemon.time.sleep", side_effect=fake_sleep),
+        pytest.raises(KeyboardInterrupt),
     ):
-        with pytest.raises(KeyboardInterrupt):
-            daemon.run_forever()
+        daemon.run_forever()
 
     assert mock_inbox.call_count >= 1
     assert mock_slurm.call_count >= 1
