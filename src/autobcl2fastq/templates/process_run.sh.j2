@@ -69,13 +69,13 @@ bcl2fastq \
 cp "${SAMPLESHEET}" "${WORKING_DIR}/fastq/${RUN_ID}/$(basename "${SAMPLESHEET}")"
 
 # -------------------------------------------------------------------
-# 2. Rename FASTQ files to NextSeq convention (*_nxq_R{1,2}.fq.gz)
+# 2. Rename FASTQ files to {{ sequencer }} convention (*_{{ sequencer }}_R{1,2}.fq.gz)
 # -------------------------------------------------------------------
-log "Fixing fastq names"
+log "Fixing fastq names ({{ sequencer }})"
 while IFS= read -r -d '' FILE; do
     newfile=$(echo "${FILE}" \
         | sed -e 's,_001\.fastq\.gz,.fq.gz,' \
-              -e 's/_S[0-9]\{1,2\}_R/_nxq_R/')
+              -e 's/_S[0-9]\{1,2\}_R/_{{ sequencer }}_R/')
     [[ "${FILE}" != "${newfile}" ]] && mv "${FILE}" "${newfile}"
 done < <(find "${WORKING_DIR}/fastq/${RUN_ID}/" -iname "*.fastq.gz" -print0)
 

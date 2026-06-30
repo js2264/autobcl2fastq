@@ -108,26 +108,29 @@ class DemuxPipeline:
 
     def run(
         self,
-        url: str,
+        source: str,
         *,
         samplesheet_path: Path | None = None,
+        sequencer: str = "nxq",
         dry_run: bool = False,
     ) -> str:
         """Full pipeline. Returns the Slurm job ID (or ``"dry-run"``).
 
         Parameters
         ----------
-        url:
-            Biomics download URL.
+        source:
+            Biomics download URL or local path to a BCL ``.tar`` archive.
         samplesheet_path:
             When provided, skip the SharePoint fetch and use this file
             directly (must already be in Illumina CSV format with a
             ``[Header]`` + ``[Data]`` section).
+        sequencer:
+            FASTQ rename convention: ``nxq`` for NextSeq or ``nvq`` for NovaSeq.
         dry_run:
             Render the sbatch script and write it to disk, but do not call
             ``sbatch``.  Returns the string ``"dry-run"``.
         """
-        run_info = RunInfo.from_url(url)
+        run_info = RunInfo.from_url(source)
         log.info("Processing run %s (hash=%s)", run_info.run_name, run_info.run_hash)
 
         settings = self.settings
@@ -140,10 +143,10 @@ class DemuxPipeline:
         log.info("Using samplesheet: %s", samplesheet_path)
 
         # ---- download BCL data -----------------------------------------
-        self._download_bcl(run_info)
+        self._stage_bcl(run_info, source)
 
         # ---- render sbatch script --------------------------------------
-        sbatch_path = self._render(run_info, samplesheet_path)
+        sbatch_path = self._render(run_info, samplesheet_path, sequencer=sequencer)
 
         # ---- submit to Slurm -------------------------------------------
         if dry_run:
@@ -158,7 +161,7 @@ class DemuxPipeline:
         db.insert_run(
             RunRecord(
                 run_id=run_info.run_id,
-                url=url,
+                url=source,
                 run_name=run_info.run_name,
                 run_hash=run_info.run_hash,
                 samplesheet_path=str(samplesheet_path),
@@ -172,21 +175,29 @@ class DemuxPipeline:
 
     # --------------------------------------------------------------- private
 
-    def _download_bcl(self, run_info: RunInfo) -> None:
-        """Download the BCL TAR archive from Biomics and unpack it."""
+    def _stage_bcl(self, run_info: RunInfo, source: str) -> None:
+        """Stage the BCL data locally: download URL or copy local tar archive."""
         runs_dir = Path(self.settings.working_dir) / "runs"
         runs_dir.mkdir(parents=True, exist_ok=True)
 
-        tar_file = runs_dir / Path(run_info.url).name
-        log.info("Downloading BCL data to %s", tar_file)
+        source_path = Path(source)
+        tar_file = runs_dir / source_path.name
 
-        curl_cmd = ["curl", "-L"]
-        if tar_file.exists():
-            # Only fetch newer data (resume-like behaviour)
-            curl_cmd += ["-z", str(tar_file)]
-        curl_cmd += [run_info.url, "-o", str(tar_file)]
-
-        subprocess.run(curl_cmd, check=True)
+        if source_path.is_file():
+            log.info("Copying local BCL archive to %s", tar_file)
+            if tar_file.resolve() != source_path.resolve():
+                subprocess.run(
+                    ["cp", "--", str(source_path), str(tar_file)],
+                    check=True,
+                )
+        else:
+            log.info("Downloading BCL data to %s", tar_file)
+            curl_cmd = ["curl", "-L"]
+            if tar_file.exists():
+                # Only fetch newer data (resume-like behaviour)
+                curl_cmd += ["-z", str(tar_file)]
+            curl_cmd += [source, "-o", str(tar_file)]
+            subprocess.run(curl_cmd, check=True)
 
         log.info("Unpacking %s", tar_file)
         subprocess.run(
@@ -195,7 +206,13 @@ class DemuxPipeline:
         )
         tar_file.unlink(missing_ok=True)
 
-    def _render(self, run_info: RunInfo, samplesheet_path: Path) -> Path:
+    def _render(
+        self,
+        run_info: RunInfo,
+        samplesheet_path: Path,
+        *,
+        sequencer: str = "nxq",
+    ) -> Path:
         """Render the sbatch Jinja2 template; write and return the script path."""
         settings = self.settings
         ctx = {
@@ -209,6 +226,7 @@ class DemuxPipeline:
             "resources_dir": str(settings.resolved_resources_dir),
             "log_dir": str(settings.log_dir),
             "autobcl2fastq_version": PACKAGE_VERSION,
+            "sequencer": sequencer,
             "submitted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
         rendered = self._jinja.get_template("process_run.sh.j2").render(**ctx)

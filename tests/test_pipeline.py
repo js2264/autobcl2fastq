@@ -85,7 +85,7 @@ def test_run_submits_and_records(tmp_settings, tmp_path: Path):
     url = "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AATEST123__ts.tar"
 
     with (
-        patch.object(DemuxPipeline, "_download_bcl"),
+        patch.object(DemuxPipeline, "_stage_bcl"),
         patch.object(DemuxPipeline, "_submit", return_value="12345"),
         patch("autobcl2fastq.pipeline.SamplesheetManager") as MockMgr,
     ):
@@ -112,7 +112,7 @@ def test_run_dry_run(tmp_settings, tmp_path: Path):
     url = "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AATEST123__ts.tar"
 
     with (
-        patch.object(DemuxPipeline, "_download_bcl"),
+        patch.object(DemuxPipeline, "_stage_bcl"),
         patch.object(DemuxPipeline, "_submit") as mock_submit,
         patch("autobcl2fastq.pipeline.SamplesheetManager") as MockMgr,
     ):
@@ -122,3 +122,39 @@ def test_run_dry_run(tmp_settings, tmp_path: Path):
 
     assert result == "dry-run"
     mock_submit.assert_not_called()
+
+
+def test_render_sequencer_nxq_default(tmp_settings, tmp_path: Path):
+    """Default sequencer uses nxq rename pattern."""
+    ss = tmp_path / "ss.csv"
+    ss.write_text("")
+    tmp_settings.resources_dir = tmp_path
+    tmp_settings.ensure_dirs()
+
+    run_info = RunInfo.from_url(
+        "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AATEST123__ts.tar"
+    )
+    pipeline = DemuxPipeline(tmp_settings)
+    sbatch_path = pipeline._render(run_info, ss)
+    content = sbatch_path.read_text()
+
+    assert "_nxq_R" in content
+    assert "_nvq_R" not in content
+
+
+def test_render_sequencer_nvq(tmp_settings, tmp_path: Path):
+    """nvq sequencer uses NovaSeq rename pattern."""
+    ss = tmp_path / "ss.csv"
+    ss.write_text("")
+    tmp_settings.resources_dir = tmp_path
+    tmp_settings.ensure_dirs()
+
+    run_info = RunInfo.from_url(
+        "https://dl.pasteur.fr/fop/XXXX/230516_VH00537_116_AATEST123__ts.tar"
+    )
+    pipeline = DemuxPipeline(tmp_settings)
+    sbatch_path = pipeline._render(run_info, ss, sequencer="nvq")
+    content = sbatch_path.read_text()
+
+    assert "_nvq_R" in content
+    assert "_nxq_R" not in content

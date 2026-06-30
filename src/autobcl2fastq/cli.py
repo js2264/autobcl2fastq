@@ -110,13 +110,43 @@ def daemon_status() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _validate_url(
+    ctx: click.Context,  # noqa: ARG001
+    param: click.Parameter,  # noqa: ARG001
+    value: str | None,
+) -> str | None:
+    """Validate --url: accept remote URLs or existing local tar files."""
+    if value is None:
+        return None
+    if value.startswith(("http://", "https://", "ftp://")):
+        return value
+    path = Path(value)
+    if not path.exists():
+        raise click.BadParameter(f"URL or archive file does not exist: {value}")
+    if not path.is_file():
+        raise click.BadParameter(f"Archive path is not a file: {value}")
+    return value
+
+
 @cli.command("run")
-@click.option("--url", required=True, help="Biomics download URL.")
+@click.option(
+    "--url",
+    required=True,
+    callback=_validate_url,
+    help="Biomics download URL or local path to a BCL .tar archive.",
+)
 @click.option(
     "--samplesheet",
     type=click.Path(exists=True, path_type=Path),
     default=None,
     help="Pre-fixed Illumina CSV samplesheet (skips SharePoint fetch).",
+)
+@click.option(
+    "--sequencer",
+    type=click.Choice(["nxq", "nvq"], case_sensitive=False),
+    default="nxq",
+    show_default=True,
+    help="Sequencer type controlling FASTQ rename convention.",
 )
 @click.option("--dry-run", is_flag=True, help="Render the sbatch script but do not submit.")
 @click.pass_context
@@ -124,6 +154,7 @@ def run_cmd(
     ctx: click.Context,
     url: str,
     samplesheet: Path | None,
+    sequencer: str,
     dry_run: bool,
 ) -> None:
     """Manually trigger demultiplexing of a single Biomics run."""
@@ -133,11 +164,17 @@ def run_cmd(
     settings: Settings = ctx.obj["settings"]
     pipeline = DemuxPipeline(settings)
 
-    run_info = RunInfo.from_url(url)
+    source = url
+    run_info = RunInfo.from_url(source)
     notifier = Notifier(settings)
 
     try:
-        job_id = pipeline.run(url, samplesheet_path=samplesheet, dry_run=dry_run)
+        job_id = pipeline.run(
+            source,
+            samplesheet_path=samplesheet,
+            sequencer=sequencer,
+            dry_run=dry_run,
+        )
     except Exception as exc:
         notifier.notify_error(str(exc), run_name=run_info.run_name)
         console.print(f"[red]Error: {exc}[/red]")
