@@ -112,6 +112,7 @@ class DemuxPipeline:
         *,
         samplesheet_path: Path | None = None,
         sequencer: str = "nxq",
+        split_undetermined_top: int = 0,
         dry_run: bool = False,
     ) -> str:
         """Full pipeline. Returns the Slurm job ID (or ``"dry-run"``).
@@ -126,6 +127,10 @@ class DemuxPipeline:
             ``[Header]`` + ``[Data]`` section).
         sequencer:
             FASTQ rename convention: ``nxq`` for NextSeq or ``nvq`` for NovaSeq.
+        split_undetermined_top:
+            When > 0, also split the Undetermined reads into one R1/R2 pair per
+            barcode pair, for this many most abundant pairs, under a local
+            ``Undetermined/`` folder (not synced to sftpcampus).
         dry_run:
             Render the sbatch script and write it to disk, but do not call
             ``sbatch``.  Returns the string ``"dry-run"``.
@@ -137,16 +142,25 @@ class DemuxPipeline:
         settings.ensure_dirs()
 
         # ---- samplesheet ---------------------------------------------------
+        manager = SamplesheetManager(settings)
         if samplesheet_path is None:
-            manager = SamplesheetManager(settings)
             samplesheet_path = manager.fetch_and_fix(run_info)
+        else:
+            # User-provided raw TSV needs to be converted to Illumina CSV
+            log.info("Processing user-provided samplesheet: %s", samplesheet_path)
+            samplesheet_path = manager.fix(samplesheet_path, run_info)
         log.info("Using samplesheet: %s", samplesheet_path)
 
         # ---- download BCL data -----------------------------------------
         self._stage_bcl(run_info, source)
 
         # ---- render sbatch script --------------------------------------
-        sbatch_path = self._render(run_info, samplesheet_path, sequencer=sequencer)
+        sbatch_path = self._render(
+            run_info,
+            samplesheet_path,
+            sequencer=sequencer,
+            split_undetermined_top=split_undetermined_top,
+        )
 
         # ---- submit to Slurm -------------------------------------------
         if dry_run:
@@ -212,6 +226,7 @@ class DemuxPipeline:
         samplesheet_path: Path,
         *,
         sequencer: str = "nxq",
+        split_undetermined_top: int = 0,
     ) -> Path:
         """Render the sbatch Jinja2 template; write and return the script path."""
         settings = self.settings
@@ -227,6 +242,7 @@ class DemuxPipeline:
             "log_dir": str(settings.log_dir),
             "autobcl2fastq_version": PACKAGE_VERSION,
             "sequencer": sequencer,
+            "split_undetermined_top": split_undetermined_top,
             "submitted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
         rendered = self._jinja.get_template("process_run.sh.j2").render(**ctx)

@@ -139,7 +139,7 @@ def _validate_url(
     "--samplesheet",
     type=click.Path(exists=True, path_type=Path),
     default=None,
-    help="Pre-fixed Illumina CSV samplesheet (skips SharePoint fetch).",
+    help="Raw RSG TSV samplesheet (two columns: sample_id, barcode_well). Will be processed to Illumina CSV.",
 )
 @click.option(
     "--sequencer",
@@ -148,6 +148,18 @@ def _validate_url(
     show_default=True,
     help="Sequencer type controlling FASTQ rename convention.",
 )
+@click.option(
+    "--split-undetermined",
+    is_flag=True,
+    help="Also split Undetermined reads by barcode pair into a local Undetermined/ folder (not synced).",
+)
+@click.option(
+    "--split-undetermined-top",
+    type=click.IntRange(min=1),
+    default=20,
+    show_default=True,
+    help="Number of most abundant undetermined barcode pairs to split out.",
+)
 @click.option("--dry-run", is_flag=True, help="Render the sbatch script but do not submit.")
 @click.pass_context
 def run_cmd(
@@ -155,6 +167,8 @@ def run_cmd(
     url: str,
     samplesheet: Path | None,
     sequencer: str,
+    split_undetermined: bool,
+    split_undetermined_top: int,
     dry_run: bool,
 ) -> None:
     """Manually trigger demultiplexing of a single Biomics run."""
@@ -173,6 +187,7 @@ def run_cmd(
             source,
             samplesheet_path=samplesheet,
             sequencer=sequencer,
+            split_undetermined_top=split_undetermined_top if split_undetermined else 0,
             dry_run=dry_run,
         )
     except Exception as exc:

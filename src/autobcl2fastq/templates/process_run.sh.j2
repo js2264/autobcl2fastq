@@ -63,19 +63,21 @@ bcl2fastq \
     -R "${WORKING_DIR}/runs/${RUN}/" \
     -o "${WORKING_DIR}/fastq/${RUN_ID}/" \
     --sample-sheet "${SAMPLESHEET}" \
+    --create-fastq-for-index-reads \
     --loading-threads 6 \
     --processing-threads 6 \
     --writing-threads 6
 cp "${SAMPLESHEET}" "${WORKING_DIR}/fastq/${RUN_ID}/$(basename "${SAMPLESHEET}")"
 
 # -------------------------------------------------------------------
-# 2. Rename FASTQ files to {{ sequencer }} convention (*_{{ sequencer }}_R{1,2}.fq.gz)
+# 2. Rename FASTQ files to {{ sequencer }} convention (*_{{ sequencer }}_{R,I}{1,2}.fq.gz)
+#    Index reads (I1/I2) are kept local: not QCed, not synced.
 # -------------------------------------------------------------------
 log "Fixing fastq names ({{ sequencer }})"
 while IFS= read -r -d '' FILE; do
     newfile=$(echo "${FILE}" \
         | sed -e 's,_001\.fastq\.gz,.fq.gz,' \
-              -e 's/_S[0-9]\{1,2\}_R/_{{ sequencer }}_R/')
+              -e 's/_S[0-9]\{1,2\}_\([RI][12]\)/_{{ sequencer }}_\1/')
     [[ "${FILE}" != "${newfile}" ]] && mv "${FILE}" "${newfile}"
 done < <(find "${WORKING_DIR}/fastq/${RUN_ID}/" -iname "*.fastq.gz" -print0)
 
@@ -122,11 +124,52 @@ multiqc \
     "${WORKING_DIR}/fastqc/${RUN_ID}" \
     "${WORKING_DIR}/fastqscreen/${RUN_ID}" 1>&2
 
+{%- if split_undetermined_top %}
+
+# -------------------------------------------------------------------
+# 5b. Split Undetermined reads by barcode pair (top {{ split_undetermined_top }}, local only)
+#     Pairs are ranked from bcl2fastq's UnknownBarcodes (summed over lanes).
+#     The full Undetermined_{{ sequencer }}_R{1,2}.fq.gz files are left untouched.
+# -------------------------------------------------------------------
+log "Splitting Undetermined reads by barcode pair (top {{ split_undetermined_top }})"
+UNDET_DIR="${WORKING_DIR}/fastq/${RUN_ID}/Undetermined"
+TOP_BARCODES=$(awk '/"UnknownBarcodes"/ { u = 1 }
+    u && match($0, /"[ACGTN+]+" *: *[0-9]+/) {
+        split(substr($0, RSTART, RLENGTH), a, /" *: */); gsub(/"/, "", a[1]); n[a[1]] += a[2]
+    }
+    END { for (bc in n) print n[bc] "\t" bc }' "${WORKING_DIR}/fastq/${RUN_ID}/Stats/Stats.json" \
+    | sort -k1,1nr | awk -v n={{ split_undetermined_top }} 'NR <= n { printf "%s ", $2 }')
+log "Barcode pairs: ${TOP_BARCODES}"
+mkdir -p "${UNDET_DIR}"
+SPLIT_PIDS=()
+for READ in R1 R2; do
+    gzip -dc "${WORKING_DIR}/fastq/${RUN_ID}/Undetermined_{{ sequencer }}_${READ}.fq.gz" | awk \
+        -v keep="${TOP_BARCODES}" \
+        -v prefix="${UNDET_DIR}/Undetermined_" \
+        -v suffix="_{{ sequencer }}_${READ}.fq.gz" '
+        BEGIN {
+            n = split(keep, bcs, " ")
+            for (i = 1; i <= n; i++) {
+                name = bcs[i]; gsub(/\+/, "-", name)
+                dest[bcs[i]] = "gzip -c > \"" prefix name suffix "\""
+            }
+        }
+        NR % 4 == 1 { m = split($2, h, ":"); out = (h[m] in dest) ? dest[h[m]] : ""; if (out != "") used[out] = 1 }
+        out != "" { print | out }
+        END { for (c in used) if (close(c) != 0) err = 1; exit err }' &
+    SPLIT_PIDS+=($!)
+done
+for PID in "${SPLIT_PIDS[@]}"; do wait "${PID}"; done
+{%- endif %}
+
 # -------------------------------------------------------------------
 # 6. Sync FASTQ reads to sftpcampus
+#    Index reads (*_I{1,2}.fq.gz) and the split Undetermined/ folder stay local.
 # -------------------------------------------------------------------
 log "Exporting FASTQ reads to ${SSH_HOSTNAME}:${DESTINATION}/run_${RUN_ID}/"
 rsync --verbose --recursive \
+    --exclude='*_I[12].fq.gz' \
+    --exclude='/Undetermined/' \
     "${WORKING_DIR}/fastq/${RUN_ID}/" \
     "${SSH_HOSTNAME}:${DESTINATION}/run_${RUN_ID}/" 1>&2
 
@@ -144,10 +187,12 @@ fi
 
 # -------------------------------------------------------------------
 # 8. Set permissions and mark run as done
+#    Only chmod what we own: collaborators may have recreated folders
+#    (e.g. a project dir) on a previous delivery, and chmod on those fails.
 # -------------------------------------------------------------------
 ssh "${SSH_HOSTNAME}" "mkdir -p ${DESTINATION}/run_${RUN_ID}"
 ssh "${SSH_HOSTNAME}" "touch ${DESTINATION}/run_${RUN_ID}/DONE"
-ssh "${SSH_HOSTNAME}" "chmod -R u=rwX,g=rwX,o=rX ${DESTINATION}/run_${RUN_ID}"
+ssh "${SSH_HOSTNAME}" "find ${DESTINATION}/run_${RUN_ID} -user \$(id -un) -exec chmod u=rwX,g=rwX,o=rX {} +"
 
 # -------------------------------------------------------------------
 # 9. Send completion notification
